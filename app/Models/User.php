@@ -53,4 +53,24 @@ class User extends Authenticatable
         'updated_at' => 'datetime',
         'last_login' => 'datetime',
     ];
+
+    public function administrator()
+    {
+        return $this->hasOne(Administrator::class, 'user_id');
+    }
+
+    public function teacher()
+    {
+        return $this->hasOne(Teacher::class, 'user_id');
+    }
+
+    public function student()
+    {
+        return $this->hasOne(Student::class, 'user_id');
+    }
+
+    public function company()
+    {
+        return $this->hasOne(Company::class, 'user_id');
+    }
 }
