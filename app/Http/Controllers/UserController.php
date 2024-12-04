@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -57,5 +58,44 @@ class UserController extends Controller
         $user = User::findOrFail($id);
         $user->delete();
         return response()->json(null, 204);
+    }
+
+    public function importUsers(Request $request): JsonResponse 
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:csv,txt',
+            'type' => 'required|in:student,teacher,company'
+        ]);
+
+        DB::beginTransaction();
+        try {
+            // Import logic here
+            $file = $request->file('file');
+            $imported = $this->processImport($file, $request->type);
+            
+            DB::commit();
+            return response()->json([
+                'message' => 'Users imported successfully',
+                'imported' => $imported
+            ], 201);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Import failed',
+                'error' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    private function processImport($file, string $type): array 
+    {
+        // Process CSV file based on type
+        // Return import statistics
+        return [
+            'total' => 0,
+            'success' => 0,
+            'failed' => 0
+        ];
     }
 }
