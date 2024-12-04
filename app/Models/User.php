@@ -27,7 +27,8 @@ class User extends Authenticatable
         'is_active',
         'must_change_password',
         'language_preference',
-        'date_of_birth'
+        'date_of_birth',
+        'profile_picture_url'  // Add this line
     ];
 
     /**
@@ -52,6 +53,7 @@ class User extends Authenticatable
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'last_login' => 'datetime',
+        'profile_picture_url' => 'string'  // Add this line
     ];
 
     public function administrator()
