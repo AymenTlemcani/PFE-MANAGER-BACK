@@ -1,0 +1,189 @@
+
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table Users {
+  UserID integer [primary key]
+  Email varchar [unique]
+  Password varchar
+  TemporaryPassword varchar
+  TemporaryPasswordExpiration timestamp
+  Role enum (Administrator, Teacher, Student, Company)
+  IsActive boolean
+  MustChangePassword boolean
+  ProfilePictureUrl varchar
+  LanguagePreference enum (French, English)
+  DateOfBirth date
+  CreatedAt timestamp
+  LastLogin timestamp
+}
+
+Table Administrators {
+  AdminID integer [primary key]
+  UserID integer [ref: > Users.UserID]
+  Name varchar
+  Surname varchar
+}
+
+Table Teachers {
+  TeacherID integer [primary key]
+  UserID integer [ref: > Users.UserID]
+  Name varchar
+  Surname varchar
+  RecruitmentDate date
+  Grade enum
+  IsResponsible boolean
+  ResearchDomain varchar
+}
+
+Table Students {
+  StudentID integer [primary key]
+  UserID integer [ref: > Users.UserID]
+  Name varchar
+  Surname varchar
+  MasterOption enum (GL, IA, RSD, SIC)
+  OverallAverage decimal
+  AdmissionYear integer
+}
+
+Table StudentPairs {
+  PairID integer [primary key]
+  Student1ID integer [ref: > Students.StudentID]
+  Student2ID integer [ref: > Students.StudentID]
+  Status enum (Proposed, Accepted, Rejected)
+  ProposedDate timestamp
+  UpdatedDate timestamp
+}
+
+Table Companies {
+  CompanyID integer [primary key]
+  UserID integer [ref: > Users.UserID]
+  CompanyName varchar
+  ContactName varchar
+  ContactSurname varchar
+  Industry varchar
+  Address text
+}
+
+Table Projects {
+  ProjectID integer [primary key]
+  Title varchar
+  Summary text
+  Technologies text
+  MaterialNeeds text
+  Type enum (Classical, Innovative, StartUp, Patent)
+  Option enum (GL, IA, RSD, SIC)
+  Status enum (Proposed, Validated, Assigned, InProgress, Completed)
+  SubmittedBy integer [ref: > Users.UserID]
+  SubmissionDate timestamp
+  LastUpdatedDate timestamp
+}
+
+Table ProjectProposals {
+  ProposalID integer [primary key]
+  ProjectID integer [ref: > Projects.ProjectID]
+  SubmittedBy integer [ref: > Users.UserID]
+  CoSupervisorName varchar
+  CoSupervisorSurname varchar
+  ProposalStatus enum (Pending, Approved, Rejected)
+  ReviewComments text
+}
+
+Table ProjectAssignments {
+  AssignmentID integer [primary key]
+  ProjectID integer [ref: > Projects.ProjectID]
+  StudentID integer [ref: > Students.StudentID]
+  TeacherID integer [ref: > Teachers.TeacherID]
+  CompanyID integer [ref: > Companies.CompanyID]
+  AssignmentDate timestamp
+  AssignmentMethod varchar
+}
+
+Table EmailPeriods {
+  PeriodID integer [primary key]
+  PeriodName varchar [unique]
+  TargetAudience enum (Students, Teachers, Companies, Administrators, All)
+  StartDate timestamp
+  ClosingDate timestamp
+  Status enum (Draft, Active, Closed, Cancelled)
+  CreatedAt timestamp
+}
+
+Table EmailPeriodReminders {
+  ReminderID integer [primary key]
+  PeriodID integer [ref: > EmailPeriods.PeriodID]
+  ReminderDate timestamp
+  ReminderNumber integer
+  Status enum (Scheduled, Sent, Cancelled)
+}
+
+Table EmailPeriodTemplates {
+  TemplateID integer [primary key]
+  PeriodID integer [ref: > EmailPeriods.PeriodID]
+  TemplateType enum (Initial, Reminder, Closing)
+  TemplateContent text
+  Subject varchar
+  Language enum (French, English)
+}
+
+Table JuryPreferences {
+  PreferenceID integer [primary key]
+  TeacherID integer [ref: > Teachers.TeacherID]
+  ProjectID integer [ref: > Projects.ProjectID]
+  PreferenceOrder integer
+  PreferenceDate timestamp
+}
+
+Table JuryAssignments {
+  JuryID integer [primary key]
+  ProjectID integer [ref: > Projects.ProjectID]
+  ExaminerID integer [ref: > Teachers.TeacherID]
+  PresidentID integer [ref: > Teachers.TeacherID]
+  SupervisorID integer [ref: > Teachers.TeacherID]
+  AssignmentMethod varchar
+  AssignmentDate timestamp
+}
+
+Table DefenseSessions {
+  SessionID integer [primary key]
+  ProjectID integer [ref: > Projects.ProjectID]
+  Room varchar
+  Date date
+  Time time
+  Duration integer
+  Status enum (Scheduled, Completed, Cancelled)
+}
+
+Table Notifications {
+  NotificationID integer [primary key]
+  UserID integer [ref: > Users.UserID]
+  Message text
+  NotificationType enum (Email, InApp)
+  SentDate timestamp
+  IsRead boolean
+  RelatedEntityType varchar
+  RelatedEntityID integer
+}
+
+Table UserImportLog {
+  ImportLogID integer [primary key]
+  ImportedBy integer [ref: > Users.UserID]
+  ImportType varchar
+  TotalRecordsImported integer
+  SuccessfulImports integer
+  FailedImports integer
+  ImportDate timestamp
+  ImportFileName varchar
+  ImportStatus varchar
+}
+
+Table AuditLog {
+  LogID integer [primary key]
+  UserID integer [ref: > Users.UserID]
+  Action enum (Create, Update, Delete)
+  TableName varchar
+  RecordID integer
+  OldValue text
+  NewValue text
+  Timestamp timestamp
+}
