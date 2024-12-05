@@ -93,25 +93,4 @@ class StudentController extends Controller
 
         return response()->json($pair);
     }
-
-    public function proposeProject(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'title' => 'required|string',
-            'summary' => 'required|string',
-            'technologies' => 'required|string',
-            'material_needs' => 'nullable|string',
-            'type' => 'required|in:Classical,Innovative,StartUp,Patent',
-            'option' => 'required|in:GL,IA,RSD,SIC'
-        ]);
-
-        $project = Project::create([
-            ...$validated,
-            'status' => 'Proposed',
-            'submitted_by' => auth()->id(),
-            'submission_date' => now()
-        ]);
-
-        return response()->json($project, 201);
-    }
 }
