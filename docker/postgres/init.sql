@@ -1,0 +1,2 @@
+DROP DATABASE IF EXISTS pfe_database;
+CREATE DATABASE pfe_database;
