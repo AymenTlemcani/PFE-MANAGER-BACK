@@ -23,14 +23,18 @@ class AuthController extends Controller
 
         if (!$user || !Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.']
+                'credentials' => ['Invalid credentials provided.']
             ]);
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
+        // Only load the relationship that matches the user's role
+        $relationshipToLoad = strtolower($user->role);
+        $user->load($relationshipToLoad);
+
         return response()->json([
-            'user' => $user->load(['administrator', 'teacher', 'student', 'company']),
+            'user' => $user,
             'token' => $token
         ]);
     }
