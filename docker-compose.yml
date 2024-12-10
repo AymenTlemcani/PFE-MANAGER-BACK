@@ -1,19 +1,18 @@
 version: '3'
 services:
   db:
-    image: mysql:8.0
+    image: postgres:13
     container_name: pfe-database
     restart: unless-stopped
     ports:
-      - "3306:3306"
-    command: --default-authentication-plugin=mysql_native_password
+      - "${DB_PORT}:5432"
     environment:
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_ROOT_HOST: '%'
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - pfe-mysql-data:/var/lib/mysql
-      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - pfe-network
 
@@ -31,5 +30,5 @@ networks:
     driver: bridge
 
 volumes:
-  pfe-mysql-data:
+  postgres_data:
     driver: local

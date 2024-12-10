@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\UserImportLog;
+use App\Imports\UserImport;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
@@ -63,39 +65,37 @@ class UserController extends Controller
     public function importUsers(Request $request): JsonResponse 
     {
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt',
-            'type' => 'required|in:student,teacher,company'
+            'type' => 'required|in:student,teacher,company',
+            'file' => 'required|file|mimes:xlsx,csv,txt'
         ]);
 
-        DB::beginTransaction();
         try {
-            // Import logic here
-            $file = $request->file('file');
-            $imported = $this->processImport($file, $request->type);
-            
-            DB::commit();
+            $import = new UserImport($request->type);
+            Excel::import($import, $request->file('file'));
+
+            // Create import log
+            UserImportLog::create([
+                'imported_by' => auth()->id(),
+                'import_type' => $request->type,
+                'total_records_imported' => $import->getRowCount(),
+                'successful_imports' => $import->getRowCount() - $import->getFailureCount(),
+                'failed_imports' => $import->getFailureCount(),
+                'import_file_name' => $request->file('file')->getClientOriginalName(),
+                'import_status' => $import->getFailureCount() === 0 ? 'Completed' : 'Completed with errors',
+                'import_date' => now()
+            ]);
+
             return response()->json([
-                'message' => 'Users imported successfully',
-                'imported' => $imported
+                'message' => 'Import completed successfully',
+                'total' => $import->getRowCount(),
+                'success' => $import->getRowCount() - $import->getFailureCount(),
+                'failures' => $import->getFailureCount()
             ], 201);
-            
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'message' => 'Import failed',
                 'error' => $e->getMessage()
             ], 400);
         }
-    }
-
-    private function processImport($file, string $type): array 
-    {
-        // Process CSV file based on type
-        // Return import statistics
-        return [
-            'total' => 0,
-            'success' => 0,
-            'failed' => 0
-        ];
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AdministratorController;
 use App\Http\Controllers\TeacherController;
@@ -17,17 +18,18 @@ use App\Http\Controllers\JuryAssignmentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\UserImportLogController;
-use App\Http\Controllers\AuthController;
+use App\Http\Controllers\EmailPeriodReminderController;
+use App\Http\Controllers\EmailPeriodTemplateController;
 
-// Public routes
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-Route::post('/validate-reset-token', [AuthController::class, 'validateResetToken']);
+// Public routes - removed /api prefix since it's in the URL
+Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/auth/validate-reset-token', [AuthController::class, 'validateResetToken']);
 
 // Protected routes
-Route::middleware('auth:api')->group(function () {
-    // Auth profile routes
+Route::middleware('auth:sanctum')->group(function () {
+    // Auth & Profile routes
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
@@ -62,7 +64,7 @@ Route::middleware('auth:api')->group(function () {
     Route::middleware('role:Student')->group(function () {
         Route::apiResource('students', StudentController::class);
         Route::apiResource('student-pairs', StudentPairController::class);
-        Route::post('/projects/propose', [ProjectController::class, 'store'])
+        Route::post('/projects/propose', [StudentController::class, 'proposeProject'])
             ->middleware('check.deadline:student_proposal_period');
         Route::post('/project-choices', [StudentController::class, 'submitProjectChoices'])
             ->middleware('check.deadline:project_choice_period');
@@ -83,7 +85,7 @@ Route::middleware('auth:api')->group(function () {
     Route::apiResource('project-proposals', ProjectProposalController::class);
     Route::apiResource('project-assignments', ProjectAssignmentController::class);
 
-    // Defense and Jury management
+    // Defense and jury management
     Route::apiResource('defense-sessions', DefenseSessionController::class);
     Route::apiResource('jury-preferences', JuryPreferenceController::class);
     Route::apiResource('jury-assignments', JuryAssignmentController::class);

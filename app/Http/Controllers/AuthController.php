@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -18,14 +19,19 @@ class AuthController extends Controller
             'password' => 'required'
         ]);
 
-        if (!Auth::attempt($credentials)) {
+        $user = User::where('email', $credentials['email'])->first();
+
+        if (!$user || !Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.']
+                'credentials' => ['Invalid credentials provided.']
             ]);
         }
 
-        $user = Auth::user();
         $token = $user->createToken('auth-token')->plainTextToken;
+
+        // Only load the relationship that matches the user's role
+        $relationshipToLoad = strtolower($user->role);
+        $user->load($relationshipToLoad);
 
         return response()->json([
             'user' => $user,
