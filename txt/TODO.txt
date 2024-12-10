@@ -1,0 +1,93 @@
+Project Management
+
+ProjectController.php
+ProjectProposalController.php
+ProjectAssignmentController.php
+Student Pairing
+
+StudentPairController.php
+Email Campaigns
+
+EmailPeriodController.php
+EmailPeriodReminderController.php
+EmailPeriodTemplateController.php
+Jury Management
+
+JuryPreferenceController.php
+JuryAssignmentController.php
+Defense Sessions
+
+DefenseSessionController.php
+Notifications
+
+NotificationController.php
+Logging and Auditing
+
+AuditLogController.php
+UserImportLogController.php
+
+
+/***************************************************************************/
+
+4. Controllers and Routes
+Create Controllers for managing user roles and features like proposals, assignments, and email notifications:
+bash
+Copy code
+php artisan make:controller ControllerName
+Set Up Routes in routes/api.php:
+Example:
+php
+Copy code
+Route::post('/proposals', [ProposalController::class, 'store']);
+Route::get('/proposals', [ProposalController::class, 'index']);
+5. Role Management (Admin, Student, Teacher, etc.)
+Use middleware to manage access for different roles.
+bash
+Copy code
+php artisan make:middleware RoleMiddleware
+In handle method, check roles:
+php
+Copy code
+if (auth()->user()->role !== $role) {
+    abort(403, 'Unauthorized');
+}
+return $next($request);
+Apply middleware to routes or controllers.
+6. Implement Business Logic
+User Management:
+Import user data from CSV.
+CRUD operations for users (admins, students, teachers).
+Proposal Management:
+Allow teachers, students, and companies to create, edit, delete proposals.
+Implement logic to save the last submitted form as the valid one.
+Assignments:
+Auto-assign projects based on preferences and grades.
+7. Notifications and Email Automation
+Set up Laravel Mail for email templates and notifications.
+bash
+Copy code
+php artisan make:mail NotificationMail
+Use a cron job or Laravel's Task Scheduling for reminders:
+In app/Console/Kernel.php:
+php
+Copy code
+$schedule->call(function () {
+    // logic for email reminders
+})->daily();
+8. Custom Validation Rules
+Create custom validation rules for forms, like unique proposal submissions:
+
+bash
+Copy code
+php artisan make:rule UniqueProposal
+9. Testing and Debugging
+Write unit tests for controllers, models, and database interactions:
+bash
+Copy code
+php artisan make:test FeatureTest
+Use Postman or similar tools to test API endpoints.
+10. Deployment
+Deploy the project to a server using tools like Laravel Forge, or manually by setting up an environment.
+Use php artisan config:cache and php artisan route:cache for optimization.
+/*************************************************************************************************************/
+https://chatgpt.com/c/67500d0c-6b68-8012-8b22-f7093848d178

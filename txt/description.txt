@@ -1,0 +1,132 @@
+Introduction :
+
+Le présent document décrit les spécifications fonctionnelles de l'application web dédiée à l'organisation et à la gestion des projets de fin d'étude (PFE) pour les étudiants en Master 2 de n’importe quel département. Cette application a pour objectif d'automatiser et de simplifier le processus long et complexe de gestion des PFE, qui s'étend généralement de novembre, lors de la proposition des sujets de PFE, jusqu'en septembre de l'année suivante, lors des soutenances de la session 2.
+
+L'application vise à mettre en relation plusieurs acteurs clés :
+
+L'administration, responsable de la gestion des données et de la supervision générale.
+
+Les enseignants, qui proposent des sujets de PFE et encadrent les étudiants.
+
+Les entreprises, qui soumettent des propositions de stages de PFE.
+
+Les étudiants, qui choisissent et réalisent les projets de fin d'étude.
+
+L'un des principaux atouts de l'application repose sur un mécanisme d'envoi automatique d'emails, permettant aux utilisateurs de renseigner les formulaires requis à chaque étape du processus. Cette application envoie des relances automatiques d’emails pour inciter les utilisateurs à soumettre leurs informations avant les dates limites. De plus, l'application propose des fonctionnalités d'affectation automatique des sujets de PFE aux étudiants en fonction de leurs préférences et de leurs résultats académiques, ainsi que l'organisation automatisée des jurys d'examen pour les soutenances.
+
+Ce document détaille les fonctionnalités attendues, les acteurs concernés, ainsi que les interactions entre les différents modules de l'application.
+
+Processus métier général :
+
+Description du processus métier :
+
+Gestion des utilisateurs
+Administrateur : Importer les informations des enseignants, étudiants et entreprises via un fichier CSV.
+Le fichier des étudiants contient les adresses emails université des étudiants, leur noms, prénoms, l’intitulé des options de master et la moyenne générale pondérée du master 1.
+
+Le fichier des enseignants contient les adresses emails personnelles des enseignants, leur noms, prénoms, date de recrutement et grades.
+
+Le fichier des entreprises contient les adresses emails des contacts entreprises, leur noms, prénoms et la dénomination de l’entreprise.
+
+L’administrateur peut, ajouter, modifier et supprimer les enseignants, étudiants et entreprises.
+
+Paramétrage des envois des emails automatiques
+L’administrateur peut spécifier les dates d'envoi des emails automatiques et des relances de chaque période.
+
+L’administrateur peut spécifier (définir et modifier) les dates de clôture pour chaque période de saisie des formulaires.
+
+L’administrateur spécifie le Template de chaque email.
+
+Après la date de clôture d’une période de saisie de formulaire aucun utilisateur n’est autorisé à renseigner un formulaire.
+
+Si un étudiant fasse plusieurs envois du même formulaire de proposition de sujet ou de choix des sujets alors le dernier formulaire soumit est ce qui est pris par le système.
+
+Gestion des propositions de projets de fin d'étude (PFE)
+3.1. Appel à propositions pour les enseignants
+
+Plateforme PFE : Envoi automatique des emails de l’appel à propositions de PFE aux enseignants inscrits sur la plateforme. Ces PFE peuvent être des sujets classiques ou innovants (Startup, Brevet ou PME).
+
+Enseignant : Soumettre les informations du PFE via un formulaire (Nom et prénom encadrant, Nom et prénom co-encadrant, Option (GL, IA, RSD, SIC), Type sujet (classique, innovant), Intitulé du PFE, Résumé, Technologies utilisées, besoins matériel). L’enseignant peut soumettre plusieurs PFE.
+
+Plateforme PFE : Envoi automatique d’emails de relance de l’appel à propositions de PFE aux enseignants n’ayants pas soumis les PFE.
+
+3.2. Appel à propositions pour les étudiants
+
+Plateforme PFE : Envoi automatique des emails de l’appel à propositions de PFE aux étudiants inscrits. Ces PFE peuvent être des sujets innovants (Startup, Brevet ou PME) ou des stages en entreprise.
+
+Étudiant : Proposer un PFE en remplissant un formulaire avec les détails du projet (Nom et prénom étudiant 1, Nom et prénom étudiant 2, Option (GL, IA, RSD, SIC), Intitulé du PFE, Résumé, Technologies utilisées, besoins matériel). Si un étudiant fasse plusieurs envois du formulaire de proposition de sujet alors le dernier formulaire soumit est celui qui est pris par la plateforme.
+
+L’étudiant peut sélectionner un binôme. Le binôme revoit une notification pour valider s’il veut travailler avec l’étudiant.
+
+Plateforme PFE : Envoi automatique d’emails de relance de l’appel à propositions de PFE aux étudiants n’ayants pas soumis les PFE.
+
+3.3. Appel à propositions pour les entreprises
+
+Plateforme PFE : Envoi automatique des emails de l’appel à propositions de PFE aux entreprises.
+
+Entreprise : Proposer un projet en remplissant un formulaire similaire (Nom de l’entreprise, Option (GL, IA, RSD, SIC), Intitulé du PFE, Résumé, Technologies utilisées). L’entreprise peut soumettre plusieurs PFE.
+
+Plateforme PFE : Envoi automatique d’emails de relance de l’appel à propositions de PFE aux entreprises n’ayants pas soumis les PFE.
+
+Chacun de ces 3 types d’utilisateurs peut voir, modifier et supprimer ses propositions avant la date limites des dépôts de PFE.
+
+Affectation des encadrants aux PFE
+4.1. Appel à encadrement pour les enseignants
+
+Plateforme PFE : Envoi automatique des emails de l’appel à encadrement pour les PFE proposés par les étudiants et les entreprises.
+
+Enseignant : Sélectionner zéro ou plusieurs projets à encadrer via la plateforme.
+
+4.2. Affectation des encadrants
+
+Plateforme PFE : Les projets sont attribués aux enseignants en fonction de leur sélection selon la règle du "premier choisi, premier affecté".
+
+Plateforme PFE :
+
+L'étudiant et l'entreprise sont informés par email de l'enseignant assigné à leur projet.
+
+Les étudiants et les entreprises dont les projets n'ont pas été choisis sont également notifiés par email.
+
+Validation des sujets par le responsable de master
+Responsable de Master : Valider les projets proposés (par les enseignants, étudiants ou entreprises) ou demander des compléments.
+
+Plateforme PFE : Notifier les enseignants pour compléter les informations si nécessaire.
+
+Enseignant : Apporter les modifications requises.
+
+Plateforme PFE : Notifications automatiques par emails des validations ou refus des sujets aux enseignants, étudiants et entreprises concernés.
+
+Choix des projets par les étudiants
+Plateforme PFE : Envoi des emails d’appel à choisir parmi les PFE proposés par les enseignants et entreprises aux étudiants de chaque option. L’email doit contenir la liste des PFE de son option.
+
+Étudiant : Choisir un projet en remplissant un formulaire de sélection. L’étudiant doit choisir un PFE parmi ceux proposés dans son option de master.
+
+L’étudiant peut sélectionner un binôme. Le binôme revoit une notification pour valider s’il veut travailler avec l’étudiant.
+
+Affectation des projets aux étudiants
+Plateforme PFE : Affecter automatiquement les projets aux étudiants en fonction de leur moyenne et de leurs choix.
+
+Plateforme PFE : Notifier par email les étudiants, enseignants et entreprises des affectations.
+
+Gestion des soutenances
+8.1. Envoi des fiches de vœux
+
+Plateforme PFE : Envoi des fiches de vœux pour la composition des jurys de soutenance aux enseignants.
+
+Enseignant : Choisir ses préférences via un formulaire (PFE).
+
+Plateforme PFE : Relancer les enseignants qui n'ont pas rempli leurs fiches.
+
+Plateforme PFE : Affecter automatiquement les projets aux jurys en fonction de leurs grades. Le plus gradé et avec la plus ancienne date de recrutement. En plus de l’encadreur, deux autres membres de jury sont affectés au jury (l’examinateur et le président). Le président sera le plus gradé et le plus ancien à être recruté.
+
+Plateforme PFE : Notifier par email les enseignants et étudiants des affectations.
+
+8.2. Planification des soutenances
+
+Administrateur : Indiquer les salles, les dates et heures des soutenances.
+
+Enseignant : Soumettre une autorisation de soutenance des étudiants encadrés par l’enseignant en remplissant un formulaire qui mentionne la session.
+
+Plateforme PFE : Planification automatique des soutenances.
+
+Plateforme PFE : Informer les enseignants, étudiants et entreprises des salles, dates et heures.

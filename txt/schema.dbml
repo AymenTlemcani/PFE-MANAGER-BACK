@@ -1,0 +1,198 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table users {
+  user_id integer [primary key]
+  email varchar [unique]
+  password varchar
+  temporary_password varchar
+  temporary_password_expiration timestamp
+  role enum (Administrator, Teacher, Student, Company)
+  is_active boolean
+  must_change_password boolean
+  profile_picture_url varchar
+  language_preference enum (French, English)
+  date_of_birth date
+  created_at timestamp
+  updated_at timestamp
+  last_login timestamp
+}
+
+Table administrators {
+  admin_id integer [primary key]
+  user_id integer [ref: > users.user_id]
+  name varchar
+  surname varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table teachers {
+  teacher_id integer [primary key]
+  user_id integer [ref: > users.user_id]
+  name varchar
+  surname varchar
+  recruitment_date date
+  grade enum
+  is_responsible boolean
+  research_domain varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table students {
+  student_id integer [primary key]
+  user_id integer [ref: > users.user_id]
+  name varchar
+  surname varchar
+  master_option enum (GL, IA, RSD, SIC)
+  overall_average decimal
+  admission_year integer
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table student_pairs {
+  pair_id integer [primary key]
+  student1_id integer [ref: > students.student_id]
+  student2_id integer [ref: > students.student_id]
+  status enum (Proposed, Accepted, Rejected)
+  proposed_date timestamp
+  updated_date timestamp
+}
+
+Table companies {
+  company_id integer [primary key]
+  user_id integer [ref: > users.user_id]
+  company_name varchar
+  contact_name varchar
+  contact_surname varchar
+  industry varchar
+  address text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table projects {
+  project_id integer [primary key]
+  title varchar
+  summary text
+  technologies text
+  material_needs text
+  type enum (Classical, Innovative, StartUp, Patent)
+  option enum (GL, IA, RSD, SIC)
+  status enum (Proposed, Validated, Assigned, InProgress, Completed)
+  submitted_by integer [ref: > users.user_id]
+  submission_date timestamp
+  updated_at timestamp
+  last_updated_date timestamp
+}
+
+Table project_proposals {
+  proposal_id integer [primary key]
+  project_id integer [ref: > projects.project_id]
+  submitted_by integer [ref: > users.user_id]
+  co_supervisor_name varchar
+  co_supervisor_surname varchar
+  proposal_status enum (Pending, Approved, Rejected)
+  review_comments text
+}
+
+Table project_assignments {
+  assignment_id integer [primary key]
+  project_id integer [ref: > projects.project_id]
+  student_id integer [ref: > students.student_id]
+  teacher_id integer [ref: > teachers.teacher_id]
+  company_id integer [ref: > companies.company_id]
+  assignment_date timestamp
+  assignment_method varchar
+}
+
+Table email_periods {
+  period_id integer [primary key]
+  period_name varchar [unique]
+  target_audience enum (Students, Teachers, Companies, Administrators, All)
+  start_date timestamp
+  closing_date timestamp
+  status enum (Draft, Active, Closed, Cancelled)
+  created_at timestamp
+}
+
+Table email_period_reminders {
+  reminder_id integer [primary key]
+  period_id integer [ref: > email_periods.period_id]
+  reminder_date timestamp
+  reminder_number integer
+  status enum (Scheduled, Sent, Cancelled)
+}
+
+Table email_period_templates {
+  template_id integer [primary key]
+  period_id integer [ref: > email_periods.period_id]
+  template_type enum (Initial, Reminder, Closing)
+  template_content text
+  subject varchar
+  language enum (French, English)
+}
+
+Table jury_preferences {
+  preference_id integer [primary key]
+  teacher_id integer [ref: > teachers.teacher_id]
+  project_id integer [ref: > projects.project_id]
+  preference_order integer
+  preference_date timestamp
+}
+
+Table jury_assignments {
+  jury_id integer [primary key]
+  project_id integer [ref: > projects.project_id]
+  examiner_id integer [ref: > teachers.teacher_id]
+  president_id integer [ref: > teachers.teacher_id]
+  supervisor_id integer [ref: > teachers.teacher_id]
+  assignment_method varchar
+  assignment_date timestamp
+}
+
+Table defense_sessions {
+  session_id integer [primary key]
+  project_id integer [ref: > projects.project_id]
+  room varchar
+  date date
+  time time
+  duration integer
+  status enum (Scheduled, Completed, Cancelled)
+}
+
+Table notifications {
+  notification_id integer [primary key]
+  user_id integer [ref: > users.user_id]
+  message text
+  notification_type enum (Email, InApp)
+  sent_date timestamp
+  is_read boolean
+  related_entity_type varchar
+  related_entity_id integer
+}
+
+Table user_import_log {
+  import_log_id integer [primary key]
+  imported_by integer [ref: > users.user_id]
+  import_type varchar
+  total_records_imported integer
+  successful_imports integer
+  failed_imports integer
+  import_date timestamp
+  import_file_name varchar
+  import_status varchar
+}
+
+Table audit_log {
+  log_id integer [primary key]
+  user_id integer [ref: > users.user_id]
+  action enum (Create, Update, Delete)
+  table_name varchar
+  record_id integer
+  old_value text
+  new_value text
+  timestamp timestamp
+}

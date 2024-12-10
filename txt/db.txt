@@ -1,0 +1,185 @@
+Users Table
+
+UserID (Primary Key)
+Email (Unique)
+Password (Hashed)
+TemporaryPassword (Nullable)
+TemporaryPasswordExpiration (Timestamp)
+Role (Enum: Administrator, Teacher, Student, Company)
+IsActive (Boolean)
+MustChangePassword (Boolean)
+ProfilePictureUrl (Nullable)
+LanguagePreference (Enum: French, English)
+DateOfBirth (Date, Nullable)
+CreatedAt (Timestamp)
+LastLogin (Timestamp)
+
+Administrators Table
+
+AdminID (Primary Key)
+UserID (Foreign Key, Unique)
+Name
+Surname
+
+Teachers Table
+
+TeacherID (Primary Key)
+UserID (Foreign Key, Unique)
+Name
+Surname
+RecruitmentDate
+Grade (Enum)
+IsResponsible (Boolean)
+ResearchDomain (Nullable)
+
+Students Table
+
+StudentID (Primary Key)
+UserID (Foreign Key, Unique)
+Name
+Surname
+MasterOption (Enum: GL, IA, RSD, SIC)
+OverallAverage
+AdmissionYear
+
+StudentPairs Table
+
+PairID (Primary Key)
+Student1ID (Foreign Key to Students)
+Student2ID (Foreign Key to Students)
+Status (Enum: Proposed, Accepted, Rejected)
+ProposedDate
+UpdatedDate
+
+Companies Table
+
+CompanyID (Primary Key)
+UserID (Foreign Key, Unique)
+CompanyName
+ContactName
+ContactSurname
+Industry
+Address
+
+Projects Table
+
+ProjectID (Primary Key)
+Title
+Summary
+Technologies
+MaterialNeeds
+Type (Enum: Classical, Innovative, StartUp, Patent)
+Option (Enum: GL, IA, RSD, SIC)
+Status (Enum: Proposed, Validated, Assigned, In Progress, Completed)
+SubmittedBy (Foreign Key to Users)
+SubmissionDate
+LastUpdatedDate
+
+ProjectProposals Table
+
+ProposalID (Primary Key)
+ProjectID (Foreign Key)
+SubmittedBy (Foreign Key to Users)
+CoSupervisorName
+CoSupervisorSurname
+ProposalStatus (Enum: Pending, Approved, Rejected)
+ReviewComments
+
+ProjectAssignments Table
+
+AssignmentID (Primary Key)
+ProjectID (Foreign Key)
+StudentID (Foreign Key)
+TeacherID (Foreign Key)
+CompanyID (Foreign Key, Nullable)
+AssignmentDate
+AssignmentMethod
+
+EmailPeriods Table
+
+PeriodID (Primary Key)
+PeriodName (Unique)
+TargetAudience (Enum: Students, Teachers, Companies, Administrators, All)
+StartDate
+ClosingDate
+Status (Enum: Draft, Active, Closed, Cancelled)
+CreatedAt
+
+EmailPeriodReminders Table
+
+ReminderID (Primary Key)
+PeriodID (Foreign Key to EmailPeriods)
+ReminderDate
+ReminderNumber
+Status (Enum: Scheduled, Sent, Cancelled)
+
+EmailPeriodTemplates Table
+
+TemplateID (Primary Key)
+PeriodID (Foreign Key to EmailPeriods)
+TemplateType (Enum: Initial, Reminder, Closing)
+TemplateContent
+Subject
+Language (Enum: French, English)
+
+JuryPreferences Table
+
+PreferenceID (Primary Key)
+TeacherID (Foreign Key)
+ProjectID (Foreign Key)
+PreferenceOrder
+PreferenceDate
+
+JuryAssignments Table
+
+JuryID (Primary Key)
+ProjectID (Foreign Key)
+ExaminerID (Foreign Key to Teachers)
+PresidentID (Foreign Key to Teachers)
+SupervisorID (Foreign Key to Teachers)
+AssignmentMethod
+AssignmentDate
+
+DefenseSessions Table
+
+SessionID (Primary Key)
+ProjectID (Foreign Key)
+Room
+Date
+Time
+Duration
+Status (Enum: Scheduled, Completed, Cancelled)
+
+Notifications Table
+
+NotificationID (Primary Key)
+UserID (Foreign Key)
+Message
+NotificationType (Enum: Email, InApp)
+SentDate
+IsRead (Boolean)
+RelatedEntityType
+RelatedEntityID
+
+UserImportLog Table
+
+ImportLogID (Primary Key)
+ImportedBy (Foreign Key to Users/Administrators)
+ImportType
+TotalRecordsImported
+SuccessfulImports
+FailedImports
+ImportDate
+ImportFileName
+ImportStatus
+
+AuditLog Table
+
+LogID (Primary Key)
+UserID (Foreign Key)
+Action (Enum: Create, Update, Delete)
+TableName
+RecordID
+OldValue
+NewValue
+Timestamp
