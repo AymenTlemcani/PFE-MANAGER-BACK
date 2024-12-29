@@ -70,32 +70,62 @@ class UserController extends Controller
         ]);
 
         try {
+            // Validate file size
+            if ($request->file('file')->getSize() > 5242880) { // 5MB limit
+                return response()->json([
+                    'message' => 'File size exceeds limit',
+                    'error' => 'Maximum file size is 5MB'
+                ], 400);
+            }
+
             $import = new UserImport($request->type);
             $import->import($request->file('file'));
 
+            $status = $import->getFailureCount() === 0 ? 'Completed' : 'Completed with errors';
+            
             // Create import log
-            UserImportLog::create([
+            $log = UserImportLog::create([
                 'imported_by' => auth()->id(),
                 'import_type' => $request->type,
                 'total_records_imported' => $import->getRowCount(),
                 'successful_imports' => $import->getRowCount() - $import->getFailureCount(),
                 'failed_imports' => $import->getFailureCount(),
                 'import_file_name' => $request->file('file')->getClientOriginalName(),
-                'import_status' => $import->getFailureCount() === 0 ? 'Completed' : 'Completed with errors',
+                'import_status' => $status,
                 'import_date' => now()
             ]);
 
             return response()->json([
-                'message' => 'Import completed successfully',
-                'total' => $import->getRowCount(),
-                'success' => $import->getRowCount() - $import->getFailureCount(),
-                'failures' => $import->getFailureCount()
+                'message' => "Import completed with status: $status",
+                'import_log_id' => $log->import_log_id,
+                'statistics' => [
+                    'total_records' => $import->getRowCount(),
+                    'successful_imports' => $import->getRowCount() - $import->getFailureCount(),
+                    'failed_imports' => $import->getFailureCount(),
+                ],
+                'successful_rows' => $import->getSuccessfulRows(),
+                'failed_rows' => $import->getFailedRows(), // Add failed rows to response
+                'errors' => $import->getErrors(),
+                'warnings' => [], // For future use with non-critical issues
+                'file_info' => [
+                    'name' => $request->file('file')->getClientOriginalName(),
+                    'size' => $request->file('file')->getSize(),
+                    'type' => $request->file('file')->getMimeType(),
+                ]
             ], 201);
+
+        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+            return response()->json([
+                'message' => 'File reading error',
+                'error' => $e->getMessage(),
+                'type' => 'file_error'
+            ], 400);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Import failed',
-                'error' => $e->getMessage()
-            ], 400);
+                'error' => $e->getMessage(),
+                'type' => 'system_error'
+            ], 500);
         }
     }
 }
