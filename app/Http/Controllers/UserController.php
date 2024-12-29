@@ -71,7 +71,7 @@ class UserController extends Controller
 
         try {
             $import = new UserImport($request->type);
-            Excel::import($import, $request->file('file'));
+            $import->import($request->file('file'));
 
             // Create import log
             UserImportLog::create([

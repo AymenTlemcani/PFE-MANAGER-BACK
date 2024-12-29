@@ -6,14 +6,11 @@ use App\Models\User;
 use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\Company;
-use Maatwebsite\Excel\Concerns\ToCollection;
-use Maatwebsite\Excel\Concerns\WithHeadingRow;
-use Maatwebsite\Excel\Concerns\WithValidation;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
-class UserImport implements ToCollection, WithHeadingRow, WithValidation
+class UserImport
 {
     protected $type;
     protected $rows = 0;
@@ -24,76 +21,103 @@ class UserImport implements ToCollection, WithHeadingRow, WithValidation
         $this->type = $type;
     }
 
-    public function collection(Collection $rows)
+    public function import($file)
     {
-        foreach ($rows as $row) {
-            ++$this->rows;
-            
-            try {
-                DB::transaction(function () use ($row) {
-                    // Create base user record
-                    $user = User::create([
-                        'email' => $row['email'],
-                        'password' => Hash::make($row['password'] ?? 'changeme123'),
-                        'role' => ucfirst($this->type),
-                        'must_change_password' => $row['must_change_password'] ?? true,
-                        'language_preference' => $row['language_preference'] ?? 'French',
-                        'is_active' => $row['is_active'] ?? true,
-                        'date_of_birth' => $row['date_of_birth'] ?? null,
-                        'profile_picture_url' => $row['profile_picture_url'] ?? null
-                    ]);
-
-                    // Create role-specific record
-                    match($this->type) {
-                        'student' => Student::create([
-                            'user_id' => $user->user_id,
-                            'name' => $row['name'],
-                            'surname' => $row['surname'],
-                            'master_option' => $row['master_option'],
-                            'overall_average' => $row['overall_average'],
-                            'admission_year' => $row['admission_year']
-                        ]),
-                        'teacher' => Teacher::create([
-                            'user_id' => $user->user_id,
-                            'name' => $row['name'],
-                            'surname' => $row['surname'],
-                            'recruitment_date' => $row['recruitment_date'],
-                            'grade' => $row['grade'],
-                            'is_responsible' => $row['is_responsible'] ?? false,
-                            'research_domain' => $row['research_domain'] ?? null
-                        ]),
-                        'company' => Company::create([
-                            'user_id' => $user->user_id,
-                            'company_name' => $row['company_name'],
-                            'contact_name' => $row['contact_name'],
-                            'contact_surname' => $row['contact_surname'],
-                            'industry' => $row['industry'],
-                            'address' => $row['address']
-                        ]),
-                        default => null
-                    };
-                });
-            } catch (\Exception $e) {
-                ++$this->failures;
-                continue; // Skip to next row on failure
+        $fileType = pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION);
+        
+        try {
+            if ($fileType === 'csv') {
+                $reader = IOFactory::createReader('Csv');
+                $reader->setDelimiter(',');
+                $spreadsheet = $reader->load($file);
+            } else {
+                $spreadsheet = IOFactory::load($file);
             }
+            
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+            
+            // Remove header row and empty rows
+            $headers = array_filter(array_shift($rows));
+            
+            foreach ($rows as $row) {
+                if (empty(array_filter($row))) {
+                    continue; // Skip empty rows
+                }
+                
+                ++$this->rows;
+                
+                // Convert to associative array
+                $data = array_combine($headers, array_pad($row, count($headers), null));
+                
+                // Validate data
+                $validator = Validator::make($data, $this->rules());
+                
+                if ($validator->fails()) {
+                    ++$this->failures;
+                    continue;
+                }
+
+                try {
+                    $this->importRow($data);
+                } catch (\Exception $e) {
+                    ++$this->failures;
+                    continue;
+                }
+            }
+
+            return $this;
+        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+            throw new \Exception('Error reading file: ' . $e->getMessage());
         }
+    }
+
+    protected function importRow(array $data)
+    {
+        // Create base user
+        $user = User::create([
+            'email' => $data['email'],
+            'password' => Hash::make('changeme123'),
+            'role' => ucfirst($this->type),
+            'must_change_password' => true,
+            'language_preference' => 'French'
+        ]);
+
+        // Create role-specific record
+        match($this->type) {
+            'student' => Student::create([
+                'user_id' => $user->user_id,
+                'name' => $data['name'],
+                'surname' => $data['surname'],
+                'master_option' => $data['master_option'],
+                'overall_average' => $data['overall_average'],
+                'admission_year' => $data['admission_year']
+            ]),
+            'teacher' => Teacher::create([
+                'user_id' => $user->user_id,
+                'name' => $data['name'],
+                'surname' => $data['surname'],
+                'recruitment_date' => $data['recruitment_date'],
+                'grade' => $data['grade'],
+                'research_domain' => $data['research_domain'] ?? null
+            ]),
+            'company' => Company::create([
+                'user_id' => $user->user_id,
+                'company_name' => $data['company_name'],
+                'contact_name' => $data['contact_name'],
+                'contact_surname' => $data['contact_surname'],
+                'industry' => $data['industry'],
+                'address' => $data['address']
+            ]),
+            default => null
+        };
     }
 
     public function rules(): array
     {
-        $commonRules = [
-            'email' => 'required|email|unique:users',
-            'password' => 'nullable|min:8',
-            'language_preference' => 'nullable|in:French,English',
-            'must_change_password' => 'nullable|boolean',
-            'is_active' => 'nullable|boolean',
-            'date_of_birth' => 'nullable|date',
-            'profile_picture_url' => 'nullable|url'
-        ];
-
-        $typeSpecificRules = match($this->type) {
+        return match($this->type) {
             'student' => [
+                'email' => ['required', 'email', 'unique:users', 'regex:/@.*\.dz$/i'],
                 'name' => 'required|string',
                 'surname' => 'required|string',
                 'master_option' => 'required|in:GL,IA,RSD,SIC',
@@ -101,14 +125,15 @@ class UserImport implements ToCollection, WithHeadingRow, WithValidation
                 'admission_year' => 'required|integer'
             ],
             'teacher' => [
+                'email' => ['required', 'email', 'unique:users'],
                 'name' => 'required|string',
                 'surname' => 'required|string',
                 'recruitment_date' => 'required|date',
                 'grade' => 'required|in:Professor,Associate Professor,Assistant Professor',
-                'is_responsible' => 'nullable|boolean',
                 'research_domain' => 'nullable|string'
             ],
             'company' => [
+                'email' => ['required', 'email', 'unique:users'],
                 'company_name' => 'required|string',
                 'contact_name' => 'required|string',
                 'contact_surname' => 'required|string',
@@ -117,8 +142,6 @@ class UserImport implements ToCollection, WithHeadingRow, WithValidation
             ],
             default => []
         };
-
-        return array_merge($commonRules, $typeSpecificRules);
     }
 
     public function getRowCount(): int
