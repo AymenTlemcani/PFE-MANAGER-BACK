@@ -165,7 +165,8 @@ class UserImport
             'surname' => $data['surname'],
             'recruitment_date' => $data['recruitment_date'],
             'grade' => $data['grade'],
-            'research_domain' => $data['research_domain'] ?? null
+            'research_domain' => $data['research_domain'] ?? null,
+            'is_responsible' => $this->parseBoolean($data['is_responsible'] ?? false)
         ]);
     }
 
@@ -249,7 +250,8 @@ class UserImport
                 'surname' => 'required|string',
                 'recruitment_date' => 'required|date',
                 'grade' => 'required|in:Professor,Associate Professor,Assistant Professor',
-                'research_domain' => 'nullable|string'
+                'research_domain' => 'nullable|string',
+                'is_responsible' => 'nullable'  // Remove boolean validation here
             ],
             'company' => [
                 'email' => ['required', 'email', 'unique:users'],
@@ -271,5 +273,27 @@ class UserImport
     public function getFailureCount(): int
     {
         return $this->failures;
+    }
+
+    protected function parseBoolean($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            return match($normalized) {
+                'true', '1', 'yes', 'on' => true,
+                'false', '0', 'no', 'off', '' => false,
+                default => false
+            };
+        }
+
+        if (is_numeric($value)) {
+            return (bool)$value;
+        }
+
+        return false;
     }
 }
