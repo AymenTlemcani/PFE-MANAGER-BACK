@@ -8,7 +8,10 @@ return new class extends Migration {
     public function up(): void {
         Schema::create('administrators', function (Blueprint $table) {
             $table->id('admin_id');
-            $table->foreignId('user_id')->constrained('users', 'user_id')->unique();
+            $table->foreignId('user_id')
+                ->constrained('users', 'user_id')
+                ->onDelete('cascade')
+                ->unique();
             $table->string('name');
             $table->string('surname');
             $table->timestamps();

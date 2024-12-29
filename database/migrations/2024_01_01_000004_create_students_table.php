@@ -8,7 +8,10 @@ return new class extends Migration {
     public function up(): void {
         Schema::create('students', function (Blueprint $table) {
             $table->id('student_id');
-            $table->foreignId('user_id')->constrained('users', 'user_id')->unique();
+            $table->foreignId('user_id')
+                ->constrained('users', 'user_id')
+                ->onDelete('cascade')
+                ->unique();
             $table->string('name');
             $table->string('surname');
             $table->enum('master_option', ['GL', 'IA', 'RSD', 'SIC']);

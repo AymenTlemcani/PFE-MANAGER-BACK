@@ -8,7 +8,10 @@ return new class extends Migration {
     public function up(): void {
         Schema::create('companies', function (Blueprint $table) {
             $table->id('company_id');
-            $table->foreignId('user_id')->constrained('users', 'user_id')->unique();
+            $table->foreignId('user_id')
+                ->constrained('users', 'user_id')
+                ->onDelete('cascade')
+                ->unique();
             $table->string('company_name');
             $table->string('contact_name');
             $table->string('contact_surname');
