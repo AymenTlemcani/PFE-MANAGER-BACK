@@ -1,6 +1,6 @@
 fix no token provided when importing
-filling the columns of users table when importing any types of users
-Implement temporary password feature 
+DONE: filling the columns of users table when importing any types of users
+DONE: Implement temporary password feature 
 
 
 Project Management
