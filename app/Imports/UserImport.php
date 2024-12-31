@@ -98,21 +98,27 @@ class UserImport
                 )));
             }
 
-            // Generate temporary password based on name and date of birth
+            // Generate temporary password
             $tempPass = $this->generateTemporaryPasswordFromData($data);
             $expirationDate = now()->addDays(7);
 
-            // Create base user
-            $user = User::create([
+            // Create base user with date_of_birth only for students and teachers
+            $userData = [
                 'email' => $data['email'],
                 'password' => Hash::make($tempPass),
                 'role' => ucfirst($this->type),
                 'must_change_password' => true,
                 'language_preference' => 'French',
-                'date_of_birth' => $data['date_of_birth'] ?? null,
                 'temporary_password' => $tempPass,
                 'temporary_password_expiration' => $expirationDate
-            ]);
+            ];
+
+            // Only add date_of_birth for students and teachers
+            if ($this->type !== 'company' && isset($data['date_of_birth'])) {
+                $userData['date_of_birth'] = $data['date_of_birth'];
+            }
+
+            $user = User::create($userData);
 
             // Create role-specific record with enhanced error handling
             $roleRecord = match($this->type) {
@@ -221,12 +227,19 @@ class UserImport
 
     protected function generateTemporaryPasswordFromData(array $data): string 
     {
-        // Get name and format it (remove spaces, special characters)
-        $name = preg_replace('/[^a-zA-Z]/', '', $data['name']);
-        $name = substr($name, 0, 3); // Take first 3 characters
-
-        // Format date of birth (DDMMYY)
-        $dob = date('dmy', strtotime($data['date_of_birth']));
+        if ($this->type === 'company') {
+            // For companies, use company name instead of personal name
+            $name = preg_replace('/[^a-zA-Z]/', '', $data['company_name']);
+            $name = substr($name, 0, 3); // Take first 3 characters
+            
+            // Use current date instead of birth date for companies
+            $date = date('dmy');
+        } else {
+            // For students and teachers
+            $name = preg_replace('/[^a-zA-Z]/', '', $data['name']);
+            $name = substr($name, 0, 3);
+            $date = date('dmy', strtotime($data['date_of_birth']));
+        }
         
         // Add a random special character
         $specialChars = '!@#$%^&*';
@@ -236,7 +249,7 @@ class UserImport
         $randomNum = rand(0, 9);
         
         // Combine all parts and make first letter uppercase
-        $password = ucfirst(strtolower($name)) . $specialChar . $dob . $randomNum;
+        $password = ucfirst(strtolower($name)) . $specialChar . $date . $randomNum;
         
         return $password;
     }
@@ -269,8 +282,7 @@ class UserImport
                 'contact_name' => 'required|string',
                 'contact_surname' => 'required|string',
                 'industry' => 'required|string',
-                'address' => 'required|string',
-                'date_of_birth' => 'required|date|before:today'
+                'address' => 'required|string'
             ],
             default => throw new \Exception("Invalid user type: {$this->type}")
         };

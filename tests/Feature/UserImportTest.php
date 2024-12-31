@@ -51,7 +51,7 @@ class UserImportTest extends TestCase
         return match($type) {
             'student' => ['email', 'name', 'surname', 'master_option', 'overall_average', 'admission_year', 'date_of_birth'],
             'teacher' => ['email', 'name', 'surname', 'recruitment_date', 'grade', 'research_domain', 'is_responsible', 'date_of_birth'],
-            'company' => ['email', 'company_name', 'contact_name', 'contact_surname', 'industry', 'address', 'date_of_birth'],
+            'company' => ['email', 'company_name', 'contact_name', 'contact_surname', 'industry', 'address'],
             default => []
         };
     }
@@ -192,6 +192,10 @@ class UserImportTest extends TestCase
     public function test_can_import_valid_company_data()
     {
         Storage::fake('local');
+        
+        // Clear the database first
+        $this->artisan('migrate:fresh');
+        
         $admin = User::factory()->create(['role' => 'Administrator']);
 
         $data = [
@@ -201,26 +205,42 @@ class UserImportTest extends TestCase
                 'contact_name' => 'Robert',
                 'contact_surname' => 'Johnson',
                 'industry' => 'Technology',
-                'address' => '123 Tech Street',
-                'date_of_birth' => '1980-01-01'  // Add required date_of_birth
+                'address' => '123 Tech Street'
             ]
         ];
 
+        // Create file using xlsx format specifically
         $filename = $this->createSpreadsheet('company', $data);
-        $file = new UploadedFile($filename, 'companies.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+        $file = new UploadedFile(
+            $filename,
+            'companies.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true
+        );
 
-        $response = $this->actingAs($admin)
+        // Enable detailed error reporting for the test
+        $response = $this->withoutExceptionHandling()
+            ->actingAs($admin)
             ->postJson('/api/users/import', [
                 'type' => 'company',
                 'file' => $file
             ]);
 
         $response->assertStatus(201);
-        $this->assertDatabaseHas('users', ['email' => 'contact@company.com']);
+        
+        // Debug assertions
+        $this->assertDatabaseHas('users', [
+            'email' => 'contact@company.com',
+            'role' => 'Company'
+        ]);
+        
         $this->assertDatabaseHas('companies', [
             'company_name' => 'Tech Corp',
             'contact_name' => 'Robert',
-            'contact_surname' => 'Johnson'
+            'contact_surname' => 'Johnson',
+            'industry' => 'Technology',
+            'address' => '123 Tech Street'
         ]);
     }
 
