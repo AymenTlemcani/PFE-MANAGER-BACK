@@ -21,7 +21,35 @@ class AuthController extends Controller
 
         $user = User::where('email', $credentials['email'])->first();
 
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'credentials' => ['Invalid credentials provided.']
+            ]);
+        }
+
+        // Check for temporary password first
+        if ($user->temporary_password && 
+            $user->temporary_password_expiration && 
+            $user->temporary_password_expiration->isFuture() &&
+            $credentials['password'] === $user->temporary_password) {
+            
+            // Mark that user must change password
+            $user->must_change_password = true;
+            $user->save();
+            
+            $token = $user->createToken('auth-token')->plainTextToken;
+            $relationshipToLoad = strtolower($user->role);
+            $user->load($relationshipToLoad);
+
+            return response()->json([
+                'user' => $user,
+                'token' => $token,
+                'must_change_password' => true
+            ]);
+        }
+
+        // Regular password check
+        if (!Hash::check($credentials['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'credentials' => ['Invalid credentials provided.']
             ]);
@@ -35,7 +63,8 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $user,
-            'token' => $token
+            'token' => $token,
+            'must_change_password' => $user->must_change_password
         ]);
     }
 
@@ -67,16 +96,28 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        if (!Hash::check($validated['current_password'], $user->password)) {
+        // Check if using temporary password or regular password
+        if ($user->temporary_password && 
+            $user->temporary_password_expiration && 
+            $user->temporary_password_expiration->isFuture() &&
+            $validated['current_password'] === $user->temporary_password) {
+            // Clear temporary password when user changes password
+            $user->update([
+                'password' => Hash::make($validated['new_password']),
+                'must_change_password' => false,
+                'temporary_password' => null,
+                'temporary_password_expiration' => null
+            ]);
+        } else if (Hash::check($validated['current_password'], $user->password)) {
+            $user->update([
+                'password' => Hash::make($validated['new_password']),
+                'must_change_password' => false
+            ]);
+        } else {
             throw ValidationException::withMessages([
                 'current_password' => ['The provided password is incorrect.']
             ]);
         }
-
-        $user->update([
-            'password' => Hash::make($validated['new_password']),
-            'must_change_password' => false
-        ]);
 
         return response()->json(['message' => 'Password updated successfully']);
     }
