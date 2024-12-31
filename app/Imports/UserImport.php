@@ -32,62 +32,64 @@ class UserImport
             if ($fileType === 'csv') {
                 $reader = IOFactory::createReader('Csv');
                 $reader->setDelimiter(',');
-                $spreadsheet = $reader->load($file);
             } else {
-                $spreadsheet = IOFactory::load($file);
+                $reader = IOFactory::createReader('Xlsx');
             }
             
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($file);
             $worksheet = $spreadsheet->getActiveSheet();
             $rows = $worksheet->toArray();
             
-            // Remove header row and empty rows
-            $headers = array_filter(array_shift($rows));
-            
+            // Get and validate headers
+            $headers = array_filter(array_map('trim', array_shift($rows)));
+            if (empty($headers)) {
+                throw new \Exception('No headers found in file');
+            }
+
             foreach ($rows as $rowIndex => $row) {
+                // Skip completely empty rows
                 if (empty(array_filter($row))) {
-                    continue; // Skip empty rows
+                    continue;
                 }
                 
                 ++$this->rows;
                 
-                // Convert to associative array
-                $data = array_combine($headers, array_pad($row, count($headers), null));
+                // Clean and combine data
+                $rowData = array_combine(
+                    $headers,
+                    array_pad(array_slice($row, 0, count($headers)), count($headers), null)
+                );
                 
+                // Clean the data
+                $rowData = array_map(function ($value) {
+                    return is_string($value) ? trim($value) : $value;
+                }, $rowData);
+
                 try {
-                    // Validate data first
-                    $validator = Validator::make($data, $this->rules());
-                    if ($validator->fails()) {
-                        throw new \Exception(implode(', ', array_map(
-                            fn($messages) => implode(', ', $messages),
-                            $validator->errors()->toArray()
-                        )));
-                    }
-                    
-                    $this->importRow($data);
+                    $this->importRow($rowData);
                 } catch (\Exception $e) {
                     ++$this->failures;
                     $this->failedRows[] = [
-                        'row_number' => $rowIndex + 2, // Add 2 to account for header and 0-based index
-                        'data' => $data,
+                        'row_number' => $rowIndex + 2,
+                        'data' => $rowData,
                         'error_message' => $e->getMessage()
                     ];
-                    continue;
                 }
             }
 
             return $this;
-        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
-            throw new \Exception('Error reading file: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            throw new \Exception('Error processing file: ' . $e->getMessage());
         }
     }
 
     protected function importRow(array $data)
     {
         try {
-            // Begin transaction
             \DB::beginTransaction();
             
-            // Validate data first
+            // Validate data
             $validator = Validator::make($data, $this->rules());
             if ($validator->fails()) {
                 throw new \Exception(implode(', ', array_map(
@@ -96,13 +98,20 @@ class UserImport
                 )));
             }
 
+            // Generate temporary password based on name and date of birth
+            $tempPass = $this->generateTemporaryPasswordFromData($data);
+            $expirationDate = now()->addDays(7);
+
             // Create base user
             $user = User::create([
                 'email' => $data['email'],
-                'password' => Hash::make('changeme123'),
+                'password' => Hash::make($tempPass),
                 'role' => ucfirst($this->type),
                 'must_change_password' => true,
-                'language_preference' => 'French'
+                'language_preference' => 'French',
+                'date_of_birth' => $data['date_of_birth'] ?? null,
+                'temporary_password' => $tempPass,
+                'temporary_password_expiration' => $expirationDate
             ]);
 
             // Create role-specific record with enhanced error handling
@@ -159,20 +168,31 @@ class UserImport
     protected function createTeacher($user, $data)
     {
         $this->validateTeacherData($data);
-        return Teacher::create([
+        
+        // Convert is_responsible to boolean with explicit default
+        $isResponsible = false;
+        if (isset($data['is_responsible'])) {
+            $isResponsible = $this->parseBoolean($data['is_responsible']);
+        }
+
+        $teacherData = [
             'user_id' => $user->user_id,
             'name' => $data['name'],
             'surname' => $data['surname'],
             'recruitment_date' => $data['recruitment_date'],
             'grade' => $data['grade'],
             'research_domain' => $data['research_domain'] ?? null,
-            'is_responsible' => $this->parseBoolean($data['is_responsible'] ?? false)
-        ]);
+            'is_responsible' => $isResponsible
+        ];
+
+        return Teacher::create($teacherData);
     }
 
     protected function createCompany($user, $data)
     {
         $this->validateCompanyData($data);
+        
+        // Ensure company data matches expected format
         return Company::create([
             'user_id' => $user->user_id,
             'company_name' => $data['company_name'],
@@ -199,7 +219,86 @@ class UserImport
         return $this->failedRows;
     }
 
-    protected function validateStudentData($data)
+    protected function generateTemporaryPasswordFromData(array $data): string 
+    {
+        // Get name and format it (remove spaces, special characters)
+        $name = preg_replace('/[^a-zA-Z]/', '', $data['name']);
+        $name = substr($name, 0, 3); // Take first 3 characters
+
+        // Format date of birth (DDMMYY)
+        $dob = date('dmy', strtotime($data['date_of_birth']));
+        
+        // Add a random special character
+        $specialChars = '!@#$%^&*';
+        $specialChar = $specialChars[rand(0, strlen($specialChars) - 1)];
+        
+        // Add a random number (0-9)
+        $randomNum = rand(0, 9);
+        
+        // Combine all parts and make first letter uppercase
+        $password = ucfirst(strtolower($name)) . $specialChar . $dob . $randomNum;
+        
+        return $password;
+    }
+
+    public function rules(): array
+    {
+        return match($this->type) {
+            'student' => [
+                'email' => ['required', 'email', 'unique:users', 'regex:/@.*\.dz$/i'],
+                'name' => 'required|string',
+                'surname' => 'required|string',
+                'master_option' => 'required|in:GL,IA,RSD,SIC',
+                'overall_average' => 'required|numeric|between:0,20',
+                'admission_year' => 'required|integer',
+                'date_of_birth' => 'required|date|before:today'
+            ],
+            'teacher' => [
+                'email' => ['required', 'email', 'unique:users'],
+                'name' => 'required|string',
+                'surname' => 'required|string',
+                'recruitment_date' => 'required|date',
+                'grade' => 'required|in:Professor,Associate Professor,Assistant Professor',
+                'research_domain' => 'nullable|string',
+                'is_responsible' => 'nullable',
+                'date_of_birth' => 'required|date|before:today'
+            ],
+            'company' => [
+                'email' => ['required', 'email', 'unique:users'],
+                'company_name' => 'required|string',
+                'contact_name' => 'required|string',
+                'contact_surname' => 'required|string',
+                'industry' => 'required|string',
+                'address' => 'required|string',
+                'date_of_birth' => 'required|date|before:today'
+            ],
+            default => throw new \Exception("Invalid user type: {$this->type}")
+        };
+    }
+
+    protected function parseBoolean($value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            return match($normalized) {
+                'true', '1', 'yes', 'on' => true,
+                'false', '0', 'no', 'off', '', 'null' => false,
+                default => false
+            };
+        }
+
+        return (bool)$value;
+    }
+
+    protected function validateStudentData($data): void
     {
         if (!preg_match('/@.*\.dz$/i', $data['email'])) {
             throw new \Exception("Student email must use a .dz domain");
@@ -212,7 +311,7 @@ class UserImport
         }
     }
 
-    protected function validateTeacherData($data)
+    protected function validateTeacherData($data): void
     {
         $validGrades = ['Professor', 'Associate Professor', 'Assistant Professor'];
         if (!in_array($data['grade'], $validGrades)) {
@@ -223,7 +322,7 @@ class UserImport
         }
     }
 
-    protected function validateCompanyData($data)
+    protected function validateCompanyData($data): void
     {
         if (empty($data['company_name'])) {
             throw new \Exception("Company name is required");
@@ -231,38 +330,6 @@ class UserImport
         if (empty($data['industry'])) {
             throw new \Exception("Industry field is required");
         }
-    }
-
-    public function rules(): array
-    {
-        return match($this->type) {
-            'student' => [
-                'email' => ['required', 'email', 'unique:users', 'regex:/@.*\.dz$/i'],
-                'name' => 'required|string',
-                'surname' => 'required|string',
-                'master_option' => 'required|in:GL,IA,RSD,SIC',
-                'overall_average' => 'required|numeric|between:0,20',
-                'admission_year' => 'required|integer'
-            ],
-            'teacher' => [
-                'email' => ['required', 'email', 'unique:users'],
-                'name' => 'required|string',
-                'surname' => 'required|string',
-                'recruitment_date' => 'required|date',
-                'grade' => 'required|in:Professor,Associate Professor,Assistant Professor',
-                'research_domain' => 'nullable|string',
-                'is_responsible' => 'nullable'  // Remove boolean validation here
-            ],
-            'company' => [
-                'email' => ['required', 'email', 'unique:users'],
-                'company_name' => 'required|string',
-                'contact_name' => 'required|string',
-                'contact_surname' => 'required|string',
-                'industry' => 'required|string',
-                'address' => 'required|string'
-            ],
-            default => []
-        };
     }
 
     public function getRowCount(): int
@@ -273,27 +340,5 @@ class UserImport
     public function getFailureCount(): int
     {
         return $this->failures;
-    }
-
-    protected function parseBoolean($value): bool
-    {
-        if (is_bool($value)) {
-            return $value;
-        }
-
-        if (is_string($value)) {
-            $normalized = strtolower(trim($value));
-            return match($normalized) {
-                'true', '1', 'yes', 'on' => true,
-                'false', '0', 'no', 'off', '' => false,
-                default => false
-            };
-        }
-
-        if (is_numeric($value)) {
-            return (bool)$value;
-        }
-
-        return false;
     }
 }

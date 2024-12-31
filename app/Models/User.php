@@ -22,12 +22,14 @@ class User extends Authenticatable
     protected $fillable = [
         'email',
         'password',
+        'temporary_password',  // Change from temp_password to temporary_password
+        'temporary_password_expiration',  // Add this field
         'role',
         'is_active',
         'must_change_password',
         'language_preference',
-        'date_of_birth',
-        'profile_picture_url'  // Add this line
+        'profile_picture_url',
+        'date_of_birth'
     ];
 
     /**

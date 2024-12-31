@@ -103,8 +103,13 @@ class UserController extends Controller
                     'successful_imports' => $import->getRowCount() - $import->getFailureCount(),
                     'failed_imports' => $import->getFailureCount(),
                 ],
-                'successful_rows' => $import->getSuccessfulRows(),
-                'failed_rows' => $import->getFailedRows(), // Add failed rows to response
+                'successful_rows' => array_map(function($row) {
+                    if (isset($row['details'])) {
+                        $row['details']->date_of_birth = User::find($row['details']->user_id)->date_of_birth;
+                    }
+                    return $row;
+                }, $import->getSuccessfulRows()),
+                'failed_rows' => $import->getFailedRows(),
                 'errors' => $import->getErrors(),
                 'warnings' => [], // For future use with non-critical issues
                 'file_info' => [
