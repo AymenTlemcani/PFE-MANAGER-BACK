@@ -164,14 +164,14 @@ class UserImportTest extends TestCase
                 'name' => 'Jane',
                 'surname' => 'Smith',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'Computer Science',
                 'is_responsible' => 'true',
                 'date_of_birth' => '1980-01-01'
             ]
         ];
 
-        $filename = $this->createSpreadsheet('teacher', $data);
+        $filename = $this->createTestFile('teacher', $data);
         $file = new UploadedFile($filename, 'teachers.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
         $response = $this->actingAs($admin)
@@ -185,7 +185,7 @@ class UserImportTest extends TestCase
         $this->assertDatabaseHas('teachers', [
             'name' => 'Jane',
             'surname' => 'Smith',
-            'grade' => 'Professor'
+            'grade' => 'PR'
         ]);
     }
 
@@ -331,7 +331,7 @@ class UserImportTest extends TestCase
                 'name' => 'Jane',
                 'surname' => 'Smith',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'Computer Science',
                 'is_responsible' => 'true',
                 'date_of_birth' => '1980-01-01'
@@ -341,7 +341,7 @@ class UserImportTest extends TestCase
                 'name' => 'John',
                 'surname' => 'Doe',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Associate Professor',
+                'grade' => 'MAA',
                 'research_domain' => 'AI',
                 'is_responsible' => 'false',
                 'date_of_birth' => '1980-01-01'
@@ -361,13 +361,13 @@ class UserImportTest extends TestCase
         $this->assertDatabaseHas('teachers', [
             'name' => 'Jane',
             'surname' => 'Smith',
-            'grade' => 'Professor',
+            'grade' => 'PR',
             'is_responsible' => true
         ]);
         $this->assertDatabaseHas('teachers', [
             'name' => 'John',
             'surname' => 'Doe',
-            'grade' => 'Associate Professor',
+            'grade' => 'MAA',
             'is_responsible' => false
         ]);
     }
@@ -384,7 +384,7 @@ class UserImportTest extends TestCase
                 'name' => 'T1',
                 'surname' => 'Test',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'CS',
                 'is_responsible' => 'true',
                 'date_of_birth' => '1980-01-01'
@@ -394,7 +394,7 @@ class UserImportTest extends TestCase
                 'name' => 'T2',
                 'surname' => 'Test',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'CS',
                 'is_responsible' => '1',
                 'date_of_birth' => '1980-01-01'
@@ -404,7 +404,7 @@ class UserImportTest extends TestCase
                 'name' => 'T3',
                 'surname' => 'Test',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'CS',
                 'is_responsible' => 'yes',
                 'date_of_birth' => '1980-01-01'
@@ -414,7 +414,7 @@ class UserImportTest extends TestCase
                 'name' => 'T4',
                 'surname' => 'Test',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'CS',
                 'is_responsible' => 'false',
                 'date_of_birth' => '1980-01-01'
@@ -424,7 +424,7 @@ class UserImportTest extends TestCase
                 'name' => 'T5',
                 'surname' => 'Test',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'CS',
                 'is_responsible' => '0',
                 'date_of_birth' => '1980-01-01'
@@ -434,7 +434,7 @@ class UserImportTest extends TestCase
                 'name' => 'T6',
                 'surname' => 'Test',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'PR',
                 'research_domain' => 'CS',
                 'is_responsible' => 'no',
                 'date_of_birth' => '1980-01-01'
@@ -480,7 +480,7 @@ class UserImportTest extends TestCase
                 'name' => 'Jane',
                 'surname' => 'Smith',
                 'recruitment_date' => '2020-01-01',
-                'grade' => 'Professor',
+                'grade' => 'MAB',
                 'research_domain' => 'Computer Science',
                 'date_of_birth' => '1980-01-01'
                 // is_responsible is missing

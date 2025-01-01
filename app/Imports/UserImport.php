@@ -271,7 +271,7 @@ class UserImport
                 'name' => 'required|string',
                 'surname' => 'required|string',
                 'recruitment_date' => 'required|date',
-                'grade' => 'required|in:Professor,Associate Professor,Assistant Professor',
+                'grade' => 'required|in:MAA,MAB,MCA,MCB,PR',
                 'research_domain' => 'nullable|string',
                 'is_responsible' => 'nullable',
                 'date_of_birth' => 'required|date|before:today'
@@ -325,7 +325,7 @@ class UserImport
 
     protected function validateTeacherData($data): void
     {
-        $validGrades = ['Professor', 'Associate Professor', 'Assistant Professor'];
+        $validGrades = ['MAA', 'MAB', 'MCA', 'MCB', 'PR'];
         if (!in_array($data['grade'], $validGrades)) {
             throw new \Exception("Invalid teacher grade: '{$data['grade']}'. Valid grades are: " . implode(', ', $validGrades));
         }

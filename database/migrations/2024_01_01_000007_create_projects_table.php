@@ -1,4 +1,3 @@
-
 <?php
 
 use Illuminate\Database\Migrations\Migration;
@@ -13,13 +12,18 @@ return new class extends Migration {
             $table->text('summary');
             $table->text('technologies');
             $table->text('material_needs');
-            $table->enum('type', ['Classical', 'Innovative', 'StartUp', 'Patent']);
+            $table->enum('type', ['Classical', 'Innovative', 'StartUp', 'Patent', 'Internship']);
             $table->enum('option', ['GL', 'IA', 'RSD', 'SIC']);
             $table->enum('status', ['Proposed', 'Validated', 'Assigned', 'InProgress', 'Completed']);
             $table->foreignId('submitted_by')->constrained('users', 'user_id');
             $table->timestamp('submission_date');
             $table->timestamp('last_updated_date');
-            $table->timestamps();
+            $table->string('company_name')->nullable();
+            $table->string('internship_location')->nullable();
+            $table->decimal('internship_salary', 10, 2)->nullable();
+            $table->date('internship_start_date')->nullable();
+            $table->integer('internship_duration_months')->nullable();
+            $table->timestamps(); // Keep only one timestamps() call
         });
     }
 

@@ -21,12 +21,19 @@ class Project extends Model
         'status',
         'submitted_by',
         'submission_date',
-        'last_updated_date'
+        'last_updated_date',
+        'company_name',
+        'internship_location',
+        'internship_salary',
+        'internship_start_date',
+        'internship_duration_months'
     ];
 
     protected $casts = [
         'submission_date' => 'datetime',
-        'last_updated_date' => 'datetime'
+        'last_updated_date' => 'datetime',
+        'internship_start_date' => 'date',
+        'internship_salary' => 'decimal:2'
     ];
 
     public function submitter()

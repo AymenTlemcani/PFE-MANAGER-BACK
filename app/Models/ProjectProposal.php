@@ -17,7 +17,16 @@ class ProjectProposal extends Model
         'co_supervisor_name',
         'co_supervisor_surname',
         'proposal_status',
-        'review_comments'
+        'review_comments',
+        'proposal_order',
+        'proposer_type',
+        'additional_details',
+        'is_final_version'
+    ];
+
+    protected $casts = [
+        'additional_details' => 'array',
+        'is_final_version' => 'boolean'
     ];
 
     public function project()

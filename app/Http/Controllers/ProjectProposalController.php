@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ProjectProposal;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 class ProjectProposalController extends Controller
 {
@@ -16,20 +17,69 @@ class ProjectProposalController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'project_id' => 'required|exists:projects,project_id',
-            'co_supervisor_name' => 'required|string',
-            'co_supervisor_surname' => 'required|string',
-            'proposal_status' => 'required|in:Pending,Approved,Rejected',
-            'review_comments' => 'nullable|string'
-        ]);
+        $user = auth()->user();
+        
+        // Check proposal limits for students
+        if ($user->role === 'Student') {
+            $proposalCount = ProjectProposal::where('submitted_by', $user->user_id)
+                ->where('proposal_status', '!=', 'Rejected')
+                ->count();
+                
+            if ($proposalCount >= 3) {
+                throw ValidationException::withMessages([
+                    'proposals' => ['You have reached the maximum limit of 3 project proposals']
+                ]);
+            }
+        }
 
+        $validated = $this->validateProposal($request);
+        
         $proposal = ProjectProposal::create([
             ...$validated,
-            'submitted_by' => auth()->id()
+            'submitted_by' => $user->user_id,  // Fix: Use user_id instead of id
+            'proposer_type' => $user->role,
+            'proposal_order' => $this->getNextProposalOrder($user->user_id),  // Fix: Use user_id
+            'proposal_status' => 'Pending'
         ]);
 
         return response()->json($proposal, 201);
+    }
+
+    private function validateProposal(Request $request): array
+    {
+        $common = [
+            'project_id' => 'required|exists:projects,project_id',
+            'review_comments' => 'nullable|string',
+            'co_supervisor_name' => 'nullable|string',
+            'co_supervisor_surname' => 'nullable|string'
+        ];
+
+        $roleSpecific = match(auth()->user()->role) {
+            'Teacher' => [
+                'co_supervisor_name' => 'required|string',
+                'co_supervisor_surname' => 'required|string',
+                'additional_details' => 'nullable|array'
+            ],
+            'Student' => [
+                'partner_id' => 'nullable|exists:students,student_id',
+                'additional_details' => 'nullable|array'
+            ],
+            'Company' => [
+                'internship_details' => 'required|array',
+                'internship_details.duration' => 'required|integer|min:4|max:12',
+                'internship_details.location' => 'required|string'
+            ],
+            default => []
+        };
+
+        return $request->validate(array_merge($common, $roleSpecific));
+    }
+
+    private function getNextProposalOrder(int $userId): int
+    {
+        return ProjectProposal::where('submitted_by', $userId)
+            ->where('proposal_status', '!=', 'Rejected')
+            ->count() + 1;
     }
 
     public function show(int $id): JsonResponse
@@ -39,19 +89,38 @@ class ProjectProposalController extends Controller
     }
 
     public function update(Request $request, int $id): JsonResponse
-    {
-        $proposal = ProjectProposal::findOrFail($id);
-        
-        $validated = $request->validate([
-            'co_supervisor_name' => 'string',
-            'co_supervisor_surname' => 'string',
-            'proposal_status' => 'in:Pending,Approved,Rejected',
-            'review_comments' => 'nullable|string'
-        ]);
+{
+    $proposal = ProjectProposal::findOrFail($id);
+    $user = auth()->user();
 
-        $proposal->update($validated);
-        return response()->json($proposal);
+    // Check if user can approve proposals
+    if ($request->has('proposal_status') && $request->proposal_status === 'Approved') {
+        if (!($user->role === 'Teacher' && $user->teacher->is_responsible)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Update project status when proposal is approved
+        $proposal->project()->update(['status' => 'Validated']);
     }
+
+    $validated = $request->validate([
+        'co_supervisor_name' => 'sometimes|string',
+        'co_supervisor_surname' => 'sometimes|string',
+        'proposal_status' => 'sometimes|in:Pending,Approved,Rejected',
+        'review_comments' => 'nullable|string',
+        'is_final_version' => 'sometimes|boolean'
+    ]);
+
+    // If marking as final version, ensure only one final version exists per student
+    if ($request->has('is_final_version') && $request->is_final_version) {
+        ProjectProposal::where('submitted_by', $proposal->submitted_by)
+            ->where('proposal_id', '!=', $proposal->proposal_id)
+            ->update(['is_final_version' => false]);
+    }
+
+    $proposal->update($validated);
+    return response()->json($proposal);
+}
 
     public function destroy(int $id): JsonResponse
     {

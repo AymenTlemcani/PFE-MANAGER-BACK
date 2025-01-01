@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 class ProjectController extends Controller
 {
@@ -21,70 +22,105 @@ class ProjectController extends Controller
         
         // Common validation rules
         $commonRules = [
-            'title' => 'required|string',
+            'title' => 'required|string|max:255',
             'summary' => 'required|string',
             'technologies' => 'required|string',
             'material_needs' => 'nullable|string',
             'option' => 'required|in:GL,IA,RSD,SIC'
         ];
 
-        // Role-specific validation rules
-        $roleSpecificRules = [];
-        
+        // Role-specific validation rules and submission limits
         switch ($user->role) {
             case 'Teacher':
-                $roleSpecificRules = [
-                    'type' => 'required|in:Classical,Innovative',
-                    'co_supervisor_name' => 'required|string',
-                    'co_supervisor_surname' => 'required|string'
-                ];
+                $this->validateTeacherSubmission($request);
                 break;
+                
             case 'Student':
-                $roleSpecificRules = [
-                    'type' => 'required|in:Innovative,StartUp,Patent',
-                    'partner_id' => 'nullable|exists:students,student_id|different:' . $user->student->student_id
-                ];
+                $this->validateStudentSubmission($request);
                 break;
+                
             case 'Company':
-                $roleSpecificRules = [
-                    'type' => 'required|in:Classical,StartUp',
-                    'company_name' => 'required|string'
-                ];
+                $this->validateCompanySubmission($request);
                 break;
+                
             default:
                 return response()->json(['message' => 'Unauthorized to propose projects'], 403);
         }
 
-        $validated = $request->validate(array_merge($commonRules, $roleSpecificRules));
+        $validated = $request->validate($commonRules);
 
-        // Create project
+        // Create project with common fields
         $project = Project::create([
             ...$validated,
             'status' => 'Proposed',
             'submitted_by' => $user->user_id,
             'submission_date' => now(),
-            'last_updated_date' => now()
+            'last_updated_date' => now(),
+            'type' => $request->type
         ]);
 
-        // Handle role-specific logic
-        if ($user->role === 'Teacher' && isset($validated['co_supervisor_name'])) {
-            $project->proposal()->create([
-                'submitted_by' => $user->user_id,
-                'co_supervisor_name' => $validated['co_supervisor_name'],
-                'co_supervisor_surname' => $validated['co_supervisor_surname'],
-                'proposal_status' => 'Pending'
-            ]);
-        } elseif ($user->role === 'Company') {
-            // Create company project proposal
-            $project->proposal()->create([
-                'submitted_by' => $user->user_id,
-                'co_supervisor_name' => $user->company->contact_name,
-                'co_supervisor_surname' => $user->company->contact_surname,
-                'proposal_status' => 'Pending'
+        // Handle type-specific data
+        if ($request->type === 'Internship') {
+            $project->update([
+                'company_name' => $request->company_name,
+                'internship_location' => $request->internship_location,
+                'internship_salary' => $request->internship_salary,
+                'internship_start_date' => $request->internship_start_date,
+                'internship_duration_months' => $request->internship_duration_months,
             ]);
         }
 
+        // Create proposal record
+        $project->proposal()->create([
+            'submitted_by' => $user->user_id,
+            'co_supervisor_name' => $request->co_supervisor_name ?? null,
+            'co_supervisor_surname' => $request->co_supervisor_surname ?? null,
+            'proposal_status' => 'Pending'
+        ]);
+
         return response()->json($project, 201);
+    }
+
+    private function validateTeacherSubmission(Request $request): void
+    {
+        $request->validate([
+            'type' => 'required|in:Classical,Innovative',
+            'co_supervisor_name' => 'required|string',
+            'co_supervisor_surname' => 'required|string'
+        ]);
+    }
+
+    private function validateStudentSubmission(Request $request): void
+    {
+        // Check if student has already submitted 3 projects
+        $submissionCount = Project::where('submitted_by', auth()->id())
+            ->where('status', 'Proposed')
+            ->count();
+
+        if ($submissionCount >= 3) {
+            throw ValidationException::withMessages([
+                'submissions' => ['Maximum number of project proposals (3) reached']
+            ]);
+        }
+
+        $request->validate([
+            'type' => 'required|in:Innovative,StartUp,Patent',
+            'partner_id' => 'nullable|exists:students,student_id|different:' . auth()->user()->student->student_id
+        ]);
+    }
+
+    private function validateCompanySubmission(Request $request): void
+    {
+        $rules = [
+            'type' => 'required|in:Internship',
+            'company_name' => 'required|string',
+            'internship_location' => 'required|string',
+            'internship_salary' => 'nullable|numeric|min:0',
+            'internship_start_date' => 'required|date|after:today',
+            'internship_duration_months' => 'required|integer|min:4|max:12'
+        ];
+
+        $request->validate($rules);
     }
 
     public function show(int $id): JsonResponse
@@ -96,6 +132,11 @@ class ProjectController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $project = Project::findOrFail($id);
+        
+        // Check if project is already validated
+        if ($project->status === 'Validated') {
+            return response()->json(['message' => 'Cannot modify a validated project'], 403);
+        }
         
         $validated = $request->validate([
             'title' => 'string',

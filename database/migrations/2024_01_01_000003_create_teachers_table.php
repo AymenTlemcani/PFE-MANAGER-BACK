@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->string('name');
             $table->string('surname');
             $table->date('recruitment_date');
-            $table->enum('grade', ['Professor', 'Associate Professor', 'Assistant Professor']);
+            $table->enum('grade', ['MAA', 'MAB', 'MCA', 'MCB', 'PR']);
             $table->boolean('is_responsible')->default(false);
             $table->string('research_domain')->nullable();
             $table->timestamps();
