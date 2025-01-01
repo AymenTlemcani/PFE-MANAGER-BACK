@@ -1,7 +1,9 @@
 fix no token provided when importing
 DONE: filling the columns of users table when importing any types of users
 DONE: Implement temporary password feature 
-
+teacher can edit proposals
+students can set last proposal version or accept after the teacher edit it
+implement partnership and add scenarios to test (if sudent accept to be in a project he cannot submit or select a project)
 
 Project Management
 

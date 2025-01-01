@@ -12,12 +12,22 @@ return new class extends Migration {
             $table->foreignId('submitted_by')->constrained('users', 'user_id');
             $table->string('co_supervisor_name')->nullable(); // Make nullable
             $table->string('co_supervisor_surname')->nullable(); // Make nullable
-            $table->enum('proposal_status', ['Pending', 'Approved', 'Rejected']);
+            $table->enum('proposal_status', [
+                'Pending', 
+                'Approved', 
+                'Rejected',
+                'Edited',  
+                'Accepted' 
+            ])->default('Pending');
             $table->text('review_comments')->nullable();
             $table->integer('proposal_order')->default(1); // Track which proposal number this is for students
             $table->enum('proposer_type', ['Teacher', 'Student', 'Company']);
             $table->json('additional_details')->nullable(); // Store type-specific details
             $table->boolean('is_final_version')->default(false);
+            $table->json('last_edited_version')->nullable();
+            $table->foreignId('edited_by')->nullable()->constrained('users', 'user_id');
+            $table->timestamp('edited_at')->nullable();
+            $table->boolean('edit_accepted')->nullable();
             $table->timestamps();
         });
     }

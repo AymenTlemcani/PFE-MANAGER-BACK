@@ -76,4 +76,12 @@ class User extends Authenticatable
     {
         return $this->hasOne(Company::class, 'user_id');
     }
+
+    public function isResponsibleTeacher(): bool
+    {
+        if ($this->role !== 'Teacher') {
+            return false;
+        }
+        return $this->teacher && $this->teacher->is_responsible;
+    }
 }

@@ -7,8 +7,9 @@ use App\Models\User;
 use App\Models\Project;
 use App\Models\Student;
 use App\Models\Teacher;
-use App\Models\Company;
+use App\Models\Company;  
 use App\Models\ProjectProposal;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 
@@ -176,17 +177,17 @@ class ProjectsTest extends TestCase
                 'proposer_type' => 'Student'
             ]);
 
+        $project = $proposal->project;  // Get reference to project
+
         $response = $this->actingAs($this->responsibleTeacher)
             ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
-                'proposal_status' => 'Approved',
-                'review_comments' => 'Excellent proposal'
+                'proposal_status' => ProjectProposal::STATUS_APPROVED,
+                'comments' => 'Excellent proposal'
             ]);
 
         $response->assertStatus(200);
-        $this->assertDatabaseHas('projects', [
-            'title' => $proposal->project->title,
-            'status' => 'Validated'
-        ]);
+        $proposal->refresh();
+        $this->assertEquals('Validated', $proposal->project->status);
     }
 
     public function test_regular_teacher_cannot_approve_proposal()
@@ -204,7 +205,8 @@ class ProjectsTest extends TestCase
 
         $response = $this->actingAs($this->regularTeacher)
             ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
-                'proposal_status' => 'Approved'
+                'proposal_status' => 'Approved',
+                'comments' => 'Trying to approve'
             ]);
 
         $response->assertStatus(403);
@@ -263,12 +265,16 @@ class ProjectsTest extends TestCase
                 'proposer_type' => 'Teacher'
             ]);
 
+        $project = $proposal->project;  // Get reference to project
+
         $this->actingAs($this->responsibleTeacher)
             ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
-                'proposal_status' => 'Approved'
+                'proposal_status' => ProjectProposal::STATUS_APPROVED,
+                'comments' => 'Approved without changes'
             ]);
 
-        $this->assertEquals('Validated', $project->fresh()->status);
+        $proposal->refresh();
+        $this->assertEquals('Validated', $proposal->project->status);
     }
 
     public function test_cannot_modify_project_after_validation()
@@ -427,7 +433,9 @@ class ProjectsTest extends TestCase
         $response = $this->actingAs($this->regularTeacher)
             ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
                 'co_supervisor_name' => 'New Name',
-                'co_supervisor_surname' => 'New Surname'
+                'co_supervisor_surname' => 'New Surname',
+                'comments' => 'Updated supervisor details',
+                'suggested_changes' => ['supervisor' => 'Changed to better match expertise']
             ]);
 
         $response->assertStatus(200);
@@ -436,5 +444,174 @@ class ProjectsTest extends TestCase
             'co_supervisor_name' => 'New Name',
             'co_supervisor_surname' => 'New Surname'
         ]);
+    }
+
+    public function test_proposal_cannot_be_modified_when_final()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->student)
+            ->forProject($project)
+            ->create([
+                'is_final_version' => true,
+                'proposal_status' => ProjectProposal::STATUS_PENDING
+            ]);
+
+        $response = $this->actingAs($this->student)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'title' => 'Modified Title'
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_proposal_status_changes_are_atomic()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->student)
+            ->forProject($project)
+            ->create(['proposal_status' => ProjectProposal::STATUS_PENDING]);
+
+        DB::beginTransaction();
+        
+        $response = $this->actingAs($this->responsibleTeacher)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'proposal_status' => ProjectProposal::STATUS_APPROVED
+            ]);
+
+        DB::rollBack();
+
+        $this->assertEquals(
+            ProjectProposal::STATUS_PENDING,
+            $proposal->fresh()->proposal_status
+        );
+    }
+
+    public function test_rejected_proposal_is_not_counted_in_maximum_limit()
+    {
+        // Create 3 proposals with one rejected
+        $proposals = [];
+        for ($i = 0; $i < 3; $i++) {
+            $project = Project::factory()
+                ->submittedBy($this->student)
+                ->create();
+
+            $proposal = ProjectProposal::factory()
+                ->forUser($this->student)
+                ->forProject($project)
+                ->create(['proposal_status' => ProjectProposal::STATUS_PENDING]);
+
+            if ($i === 0) {
+                $this->actingAs($this->responsibleTeacher)
+                    ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                        'proposal_status' => ProjectProposal::STATUS_REJECTED,
+                        'comments' => 'Rejected - needs work'
+                    ]);
+            }
+
+            $proposals[] = $proposal;
+        }
+
+        // Should be able to create one more proposal since one was rejected
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+
+        $response = $this->actingAs($this->student)
+            ->postJson('/api/project-proposals', [
+                'project_id' => $project->project_id,
+                'partner_id' => $this->student2->student->student_id
+            ]);
+
+        $response->assertStatus(201);
+    }
+
+    public function test_teacher_can_edit_student_proposal()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create(['type' => 'StartUp']);
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->student)
+            ->forProject($project)
+            ->create([
+                'proposal_status' => ProjectProposal::STATUS_PENDING,
+                'co_supervisor_name' => 'Original Name'
+            ]);
+
+        $response = $this->actingAs($this->regularTeacher)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'co_supervisor_name' => 'Updated Name',
+                'comments' => 'Please update the methodology',
+                'suggested_changes' => ['methodology' => 'Add more detail']
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals(ProjectProposal::STATUS_EDITED, $proposal->fresh()->proposal_status);
+        $this->assertEquals($this->regularTeacher->user_id, $proposal->fresh()->edited_by);
+        $this->assertNotNull($proposal->fresh()->edited_at);
+        $this->assertFalse($proposal->fresh()->edit_accepted);
+    }
+
+    public function test_student_can_accept_teacher_edits()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->student)
+            ->forProject($project)
+            ->create([
+                'proposal_status' => ProjectProposal::STATUS_EDITED,
+                'edited_by' => $this->regularTeacher->user_id,
+                'edited_at' => now(),
+                'edit_accepted' => false
+            ]);
+
+        $response = $this->actingAs($this->student)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'accept_changes' => true,
+                'is_final_version' => true,
+                'comments' => 'Changes look good'
+            ]);
+
+        $response->assertStatus(200);
+        $updatedProposal = $proposal->fresh();
+        $this->assertTrue($updatedProposal->edit_accepted);
+        $this->assertEquals(ProjectProposal::STATUS_ACCEPTED, $updatedProposal->proposal_status);
+        $this->assertTrue($updatedProposal->is_final_version);
+    }
+
+    public function test_teacher_cannot_edit_final_version()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->student)
+            ->forProject($project)
+            ->create([
+                'is_final_version' => true,
+                'proposal_status' => ProjectProposal::STATUS_PENDING
+            ]);
+
+        $response = $this->actingAs($this->regularTeacher)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'co_supervisor_name' => 'New Name',
+                'comments' => 'Update needed',
+                'suggested_changes' => ['content' => 'Revise']
+            ]);
+
+        $response->assertStatus(403);
     }
 }
