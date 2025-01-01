@@ -328,4 +328,113 @@ class ProjectsTest extends TestCase
 
         $response->assertStatus(201);
     }
+
+    public function test_student_can_submit_three_proposals_maximum()
+    {
+        // Create 3 projects and submit proposals
+        for ($i = 0; $i < 3; $i++) {
+            $project = Project::factory()
+                ->submittedBy($this->student)
+                ->create(['type' => 'StartUp']);
+
+            $response = $this->actingAs($this->student)
+                ->postJson('/api/project-proposals', [
+                    'project_id' => $project->project_id,
+                    'partner_id' => $this->student2->student->student_id
+                ]);
+
+            $response->assertStatus(201);
+        }
+
+        // Try to submit a fourth proposal
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create(['type' => 'StartUp']);
+
+        $response = $this->actingAs($this->student)
+            ->postJson('/api/project-proposals', [
+                'project_id' => $project->project_id,
+                'partner_id' => $this->student2->student->student_id
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_student_cannot_partner_with_self()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create(['type' => 'StartUp']);
+
+        $response = $this->actingAs($this->student)
+            ->postJson('/api/project-proposals', [
+                'project_id' => $project->project_id,
+                'partner_id' => $this->student->student->student_id
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_teacher_can_only_submit_classical_or_innovative_projects()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->regularTeacher)
+            ->create(['type' => 'StartUp']); // Invalid type for teacher
+
+        $response = $this->actingAs($this->regularTeacher)
+            ->postJson('/api/project-proposals', [
+                'project_id' => $project->project_id,
+                'co_supervisor_name' => 'Sarah',
+                'co_supervisor_surname' => 'Expert'
+            ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_company_internship_proposal_requires_duration_and_location()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->company)
+            ->create(['type' => 'Internship']);
+
+        $response = $this->actingAs($this->company)
+            ->postJson('/api/project-proposals', [
+                'project_id' => $project->project_id,
+                'internship_details' => [
+                    'salary' => 2000.00
+                    // Missing required duration and location
+                ]
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['internship_details.duration', 'internship_details.location']);
+    }
+
+    public function test_proposal_can_be_modified_before_deadline()
+    {
+        $project = Project::factory()
+            ->submittedBy($this->regularTeacher)
+            ->create(['type' => 'Classical']);
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->regularTeacher)
+            ->forProject($project)
+            ->create([
+                'co_supervisor_name' => 'Old Name',
+                'co_supervisor_surname' => 'Old Surname'
+            ]);
+
+        $response = $this->actingAs($this->regularTeacher)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'co_supervisor_name' => 'New Name',
+                'co_supervisor_surname' => 'New Surname'
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('project_proposals', [
+            'proposal_id' => $proposal->proposal_id,
+            'co_supervisor_name' => 'New Name',
+            'co_supervisor_surname' => 'New Surname'
+        ]);
+    }
 }

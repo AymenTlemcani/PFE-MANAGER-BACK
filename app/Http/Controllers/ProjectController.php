@@ -83,6 +83,12 @@ class ProjectController extends Controller
 
     private function validateTeacherSubmission(Request $request): void
     {
+        if (!in_array($request->type, ['Classical', 'Innovative'])) {
+            throw ValidationException::withMessages([
+                'type' => ['Teachers can only submit Classical or Innovative projects']
+            ]);
+        }
+
         $request->validate([
             'type' => 'required|in:Classical,Innovative',
             'co_supervisor_name' => 'required|string',
@@ -94,7 +100,7 @@ class ProjectController extends Controller
     {
         // Check if student has already submitted 3 projects
         $submissionCount = Project::where('submitted_by', auth()->id())
-            ->where('status', 'Proposed')
+            ->where('status', '!=', 'Rejected')
             ->count();
 
         if ($submissionCount >= 3) {
@@ -103,9 +109,22 @@ class ProjectController extends Controller
             ]);
         }
 
+        $currentStudent = auth()->user()->student;
+
+        // Validate partner_id is not self
+        if ($request->partner_id === $currentStudent->student_id) {
+            throw ValidationException::withMessages([
+                'partner_id' => ['Cannot partner with yourself']
+            ]);
+        }
+
         $request->validate([
             'type' => 'required|in:Innovative,StartUp,Patent',
-            'partner_id' => 'nullable|exists:students,student_id|different:' . auth()->user()->student->student_id
+            'partner_id' => [
+                'nullable',
+                'exists:students,student_id',
+                'different:' . $currentStudent->student_id
+            ]
         ]);
     }
 

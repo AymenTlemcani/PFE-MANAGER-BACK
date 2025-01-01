@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProjectProposal;
+use App\Models\Project; // Add this import
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -47,6 +48,16 @@ class ProjectProposalController extends Controller
 
     private function validateProposal(Request $request): array
     {
+        $user = auth()->user();
+        $project = Project::findOrFail($request->project_id);
+
+        // Validate project type matches user role
+        if ($user->role === 'Teacher' && !in_array($project->type, ['Classical', 'Innovative'])) {
+            throw ValidationException::withMessages([
+                'type' => ['Teachers can only submit Classical or Innovative projects']
+            ]);
+        }
+
         $common = [
             'project_id' => 'required|exists:projects,project_id',
             'review_comments' => 'nullable|string',
@@ -54,14 +65,22 @@ class ProjectProposalController extends Controller
             'co_supervisor_surname' => 'nullable|string'
         ];
 
-        $roleSpecific = match(auth()->user()->role) {
+        $roleSpecific = match($user->role) {
             'Teacher' => [
                 'co_supervisor_name' => 'required|string',
                 'co_supervisor_surname' => 'required|string',
                 'additional_details' => 'nullable|array'
             ],
             'Student' => [
-                'partner_id' => 'nullable|exists:students,student_id',
+                'partner_id' => [
+                    'nullable',
+                    'exists:students,student_id',
+                    function($attribute, $value, $fail) use ($user) {
+                        if ($value == $user->student->student_id) {
+                            $fail('Cannot partner with yourself.');
+                        }
+                    }
+                ],
                 'additional_details' => 'nullable|array'
             ],
             'Company' => [
