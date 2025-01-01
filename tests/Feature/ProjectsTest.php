@@ -561,36 +561,6 @@ class ProjectsTest extends TestCase
         $this->assertFalse($proposal->fresh()->edit_accepted);
     }
 
-    public function test_student_can_accept_teacher_edits()
-    {
-        $project = Project::factory()
-            ->submittedBy($this->student)
-            ->create();
-
-        $proposal = ProjectProposal::factory()
-            ->forUser($this->student)
-            ->forProject($project)
-            ->create([
-                'proposal_status' => ProjectProposal::STATUS_EDITED,
-                'edited_by' => $this->regularTeacher->user_id,
-                'edited_at' => now(),
-                'edit_accepted' => false
-            ]);
-
-        $response = $this->actingAs($this->student)
-            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
-                'accept_changes' => true,
-                'is_final_version' => true,
-                'comments' => 'Changes look good'
-            ]);
-
-        $response->assertStatus(200);
-        $updatedProposal = $proposal->fresh();
-        $this->assertTrue($updatedProposal->edit_accepted);
-        $this->assertEquals(ProjectProposal::STATUS_ACCEPTED, $updatedProposal->proposal_status);
-        $this->assertTrue($updatedProposal->is_final_version);
-    }
-
     public function test_teacher_cannot_edit_final_version()
     {
         $project = Project::factory()
@@ -613,5 +583,47 @@ class ProjectsTest extends TestCase
             ]);
 
         $response->assertStatus(403);
+    }
+
+    public function test_student_can_accept_edited_proposal()
+    {
+        // Create a proposal that has been edited by a teacher
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+
+        $originalVersion = [
+            'co_supervisor_name' => 'Original Name',
+            'co_supervisor_surname' => 'Original Surname',
+            'additional_details' => ['original' => 'details']
+        ];
+
+        $proposal = ProjectProposal::factory()
+            ->forUser($this->student)
+            ->forProject($project)
+            ->create([
+                'proposal_status' => ProjectProposal::STATUS_EDITED,
+                'edited_by' => $this->regularTeacher->user_id,
+                'edited_at' => now(),
+                'edit_accepted' => false,
+                'last_edited_version' => $originalVersion,
+                'co_supervisor_name' => 'Updated Name',
+                'co_supervisor_surname' => 'Updated Surname'
+            ]);
+
+        // Student accepts the teacher's edits
+        $response = $this->actingAs($this->student)
+            ->putJson("/api/project-proposals/{$proposal->proposal_id}", [
+                'accept_changes' => true,
+                'comments' => 'The suggested changes improve the proposal'
+            ]);
+
+        $response->assertStatus(200);
+        
+        $updatedProposal = $proposal->fresh();
+        $this->assertTrue($updatedProposal->edit_accepted);
+        $this->assertEquals(ProjectProposal::STATUS_ACCEPTED, $updatedProposal->proposal_status);
+        $this->assertEquals('Updated Name', $updatedProposal->co_supervisor_name);
+        $this->assertEquals('Updated Surname', $updatedProposal->co_supervisor_surname);
     }
 }
