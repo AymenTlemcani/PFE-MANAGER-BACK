@@ -35,50 +35,42 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     
-    // User management
+    // User management routes (protected by controller)
     Route::apiResource('users', UserController::class);
     Route::post('/users/import', [UserController::class, 'importUsers']);
-
+    
     // Administrator routes
-    Route::middleware('role:Administrator')->group(function () {
-        Route::apiResource('administrators', AdministratorController::class);
-        Route::post('/email-periods', [AdministratorController::class, 'createEmailPeriod']);
-        Route::post('/defense-sessions/plan', [AdministratorController::class, 'planDefenseSessions']);
-        Route::get('/audit-logs', [AuditLogController::class, 'index']);
-        Route::get('/import-logs', [UserImportLogController::class, 'index']);
-    });
+    Route::apiResource('administrators', AdministratorController::class);
+    Route::post('/email-periods', [AdministratorController::class, 'createEmailPeriod']);
+    Route::post('/defense-sessions/plan', [AdministratorController::class, 'planDefenseSessions']);
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    Route::get('/import-logs', [UserImportLogController::class, 'index']);
 
     // Teacher routes
-    Route::middleware('role:Teacher')->group(function () {
-        Route::apiResource('teachers', TeacherController::class);
-        Route::post('/projects/validate/{projectId}', [TeacherController::class, 'validateProject'])
-            ->middleware(['can:validate-projects', 'check.responsible', 'check.project.assignment']);
-        Route::post('/projects/supervise', [TeacherController::class, 'selectProjectsForSupervision']);
-        Route::post('/projects/propose', [ProjectController::class, 'store'])
-            ->middleware('check.deadline:teacher_proposal_period');
-        Route::post('/jury-preferences', [TeacherController::class, 'submitJuryPreferences'])
-            ->middleware('check.deadline:jury_preference_period');
-    });
+    Route::apiResource('teachers', TeacherController::class);
+    Route::post('/projects/validate/{projectId}', [TeacherController::class, 'validateProject'])
+        ->middleware(['can:validate-projects', 'check.responsible', 'check.project.assignment']);
+    Route::post('/projects/supervise', [TeacherController::class, 'selectProjectsForSupervision']);
+    Route::post('/projects/propose', [ProjectController::class, 'store'])
+        ->middleware('check.deadline:teacher_proposal_period');
+    Route::post('/jury-preferences', [TeacherController::class, 'submitJuryPreferences'])
+        ->middleware('check.deadline:jury_preference_period');
 
     // Student routes
-    Route::middleware('role:Student')->group(function () {
-        Route::apiResource('students', StudentController::class);
-        Route::apiResource('student-pairs', StudentPairController::class);
-        Route::post('/projects/propose', [StudentController::class, 'proposeProject'])
-            ->middleware('check.deadline:student_proposal_period');
-        Route::post('/project-choices', [StudentController::class, 'submitProjectChoices'])
-            ->middleware('check.deadline:project_choice_period');
-        Route::post('/student-pairs', [StudentPairController::class, 'store'])
-            ->middleware('check.pair');
-    });
+    Route::apiResource('students', StudentController::class);
+    Route::apiResource('student-pairs', StudentPairController::class);
+    Route::post('/projects/propose', [StudentController::class, 'proposeProject'])
+        ->middleware('check.deadline:student_proposal_period');
+    Route::post('/project-choices', [StudentController::class, 'submitProjectChoices'])
+        ->middleware('check.deadline:project_choice_period');
+    Route::post('/student-pairs', [StudentPairController::class, 'store'])
+        ->middleware('check.pair');
 
     // Company routes
-    Route::middleware('role:Company')->group(function () {
-        Route::apiResource('companies', CompanyController::class);
-        Route::post('/projects/propose', [CompanyController::class, 'proposeProject'])
-            ->middleware('check.deadline:company_proposal_period');
-        Route::get('/projects/proposed', [CompanyController::class, 'getProposedProjects']);
-    });
+    Route::apiResource('companies', CompanyController::class);
+    Route::post('/projects/propose', [CompanyController::class, 'proposeProject'])
+        ->middleware('check.deadline:company_proposal_period');
+    Route::get('/projects/proposed', [CompanyController::class, 'getProposedProjects']);
 
     // Project management
     Route::apiResource('projects', ProjectController::class);

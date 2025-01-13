@@ -12,8 +12,17 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
+    private function checkAdminAccess(): void
+    {
+        if (!auth()->user() || auth()->user()->role !== 'Administrator') {
+            abort(403, 'Unauthorized. Admin access required.');
+        }
+    }
+
     public function index(Request $request): JsonResponse
     {
+        $this->checkAdminAccess();
+
         $request->validate([
             'search' => 'nullable|string',
             'role' => 'nullable|in:Administrator,Teacher,Student,Company',
@@ -78,6 +87,8 @@ class UserController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->checkAdminAccess();
+
         $validated = $request->validate([
             'email' => 'required|email|unique:users',
             'password' => 'required|min:8',
@@ -94,12 +105,16 @@ class UserController extends Controller
 
     public function show(int $id): JsonResponse
     {
+        $this->checkAdminAccess();
+
         $user = User::findOrFail($id);
         return response()->json($user);
     }
 
     public function update(Request $request, int $id): JsonResponse
     {
+        $this->checkAdminAccess();
+
         $user = User::findOrFail($id);
         
         $validated = $request->validate([
@@ -115,6 +130,8 @@ class UserController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
+        $this->checkAdminAccess();
+
         if ($id === auth()->id()) {
             return response()->json(['message' => 'Cannot delete your own account'], 400);
         }
@@ -126,9 +143,7 @@ class UserController extends Controller
 
     public function importUsers(Request $request): JsonResponse 
     {
-        if (!auth()->user() || auth()->user()->role !== 'Administrator') {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $this->checkAdminAccess();
 
         $request->validate([
             'type' => 'required|in:student,teacher,company',
