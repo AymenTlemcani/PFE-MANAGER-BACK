@@ -89,18 +89,95 @@ class UserController extends Controller
     {
         $this->checkAdminAccess();
 
-        $validated = $request->validate([
+        // Base validation rules
+        $rules = [
             'email' => 'required|email|unique:users',
             'password' => 'required|min:8',
             'role' => 'required|in:Administrator,Teacher,Student,Company',
             'language_preference' => 'required|in:French,English',
             'date_of_birth' => 'nullable|date'
-        ]);
+        ];
 
-        $validated['password'] = Hash::make($validated['password']);
-        $user = User::create($validated);
+        // Add role-specific validation rules
+        switch ($request->role) {
+            case 'Student':
+                $rules += [
+                    'name' => 'required|string',
+                    'surname' => 'required|string',
+                    'master_option' => 'required|in:GL,IA,RSD,SIC',
+                    'overall_average' => 'required|numeric|between:0,20',
+                    'admission_year' => 'required|integer'
+                ];
+                break;
+            case 'Teacher':
+                $rules += [
+                    'name' => 'required|string',
+                    'surname' => 'required|string',
+                    'recruitment_date' => 'required|date',
+                    'grade' => 'required|in:MAA,MAB,MCA,MCB,PR',
+                    'research_domain' => 'nullable|string',
+                    'is_responsible' => 'boolean'
+                ];
+                break;
+            case 'Company':
+                $rules += [
+                    'company_name' => 'required|string',
+                    'contact_name' => 'required|string',
+                    'contact_surname' => 'required|string',
+                    'industry' => 'required|string',
+                    'address' => 'required|string'
+                ];
+                break;
+            case 'Administrator':
+                $rules += [
+                    'name' => 'required|string',
+                    'surname' => 'required|string'
+                ];
+                break;
+        }
 
-        return response()->json($user, 201);
+        $validated = $request->validate($rules);
+
+        \DB::beginTransaction();
+        try {
+            // Create base user
+            $userData = array_intersect_key($validated, array_flip([
+                'email', 'password', 'role', 'language_preference', 'date_of_birth'
+            ]));
+            $userData['password'] = Hash::make($userData['password']);
+            $user = User::create($userData);
+
+            // Create role-specific record
+            switch ($request->role) {
+                case 'Student':
+                    $user->student()->create(array_intersect_key($validated, array_flip([
+                        'name', 'surname', 'master_option', 'overall_average', 'admission_year'
+                    ])));
+                    break;
+                case 'Teacher':
+                    $user->teacher()->create(array_intersect_key($validated, array_flip([
+                        'name', 'surname', 'recruitment_date', 'grade', 'research_domain', 'is_responsible'
+                    ])));
+                    break;
+                case 'Company':
+                    $user->company()->create(array_intersect_key($validated, array_flip([
+                        'company_name', 'contact_name', 'contact_surname', 'industry', 'address'
+                    ])));
+                    break;
+                case 'Administrator':
+                    $user->administrator()->create(array_intersect_key($validated, array_flip([
+                        'name', 'surname'
+                    ])));
+                    break;
+            }
+
+            \DB::commit();
+            return response()->json($user->load(strtolower($request->role)), 201);
+
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json(['message' => 'Error creating user', 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function show(int $id): JsonResponse
@@ -212,6 +289,34 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'type' => 'system_error'
             ], 500);
+        }
+    }
+
+    public function bulkDelete(Request $request): JsonResponse
+    {
+        $this->checkAdminAccess();
+
+        $validated = $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'required|integer|exists:users,user_id'
+        ]);
+
+        if (in_array(auth()->id(), $validated['user_ids'])) {
+            return response()->json(['message' => 'Cannot delete your own account'], 400);
+        }
+
+        try {
+            \DB::beginTransaction();
+            User::whereIn('user_id', $validated['user_ids'])->delete();
+            \DB::commit();
+
+            return response()->json([
+                'message' => 'Users deleted successfully',
+                'count' => count($validated['user_ids'])
+            ]);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json(['message' => 'Error deleting users', 'error' => $e->getMessage()], 500);
         }
     }
 }

@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // User management routes (protected by controller)
     Route::apiResource('users', UserController::class);
     Route::post('/users/import', [UserController::class, 'importUsers']);
+    Route::post('/users/bulk-delete', [UserController::class, 'bulkDelete']);
     
     // Administrator routes
     Route::apiResource('administrators', AdministratorController::class);
