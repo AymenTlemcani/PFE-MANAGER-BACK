@@ -12,10 +12,68 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $users = User::all();
-        return response()->json($users);
+        $request->validate([
+            'search' => 'nullable|string',
+            'role' => 'nullable|in:Administrator,Teacher,Student,Company',
+            'per_page' => 'nullable|integer|min:1|max:100'
+        ]);
+
+        $query = User::with(['administrator', 'teacher', 'student', 'company']);
+
+        // Apply search filter
+        if ($request->has('search')) {
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('email', 'like', "%{$searchTerm}%")
+                  ->orWhereHas('administrator', function($q) use ($searchTerm) {
+                      $q->where('name', 'like', "%{$searchTerm}%")
+                        ->orWhere('surname', 'like', "%{$searchTerm}%");
+                  })
+                  ->orWhereHas('teacher', function($q) use ($searchTerm) {
+                      $q->where('name', 'like', "%{$searchTerm}%")
+                        ->orWhere('surname', 'like', "%{$searchTerm}%");
+                  })
+                  ->orWhereHas('student', function($q) use ($searchTerm) {
+                      $q->where('name', 'like', "%{$searchTerm}%")
+                        ->orWhere('surname', 'like', "%{$searchTerm}%");
+                  })
+                  ->orWhereHas('company', function($q) use ($searchTerm) {
+                      $q->where('company_name', 'like', "%{$searchTerm}%")
+                        ->orWhere('contact_name', 'like', "%{$searchTerm}%")
+                        ->orWhere('contact_surname', 'like', "%{$searchTerm}%");
+                  });
+            });
+        }
+
+        // Apply role filter
+        if ($request->has('role')) {
+            $query->where('role', $request->role);
+        }
+
+        // Apply sorting
+        $query->orderBy($request->get('sort_by', 'created_at'), $request->get('sort_order', 'desc'));
+
+        $users = $query->paginate($request->get('per_page', 10));
+
+        return response()->json([
+            'data' => $users->items(),
+            'pagination' => [
+                'current_page' => $users->currentPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
+                'last_page' => $users->lastPage(),
+                'from' => $users->firstItem(),
+                'to' => $users->lastItem(),
+            ],
+            'filters' => [
+                'search' => $request->search,
+                'role' => $request->role,
+                'sort_by' => $request->get('sort_by', 'created_at'),
+                'sort_order' => $request->get('sort_order', 'desc'),
+            ]
+        ]);
     }
 
     public function store(Request $request): JsonResponse
@@ -57,6 +115,10 @@ class UserController extends Controller
 
     public function destroy(int $id): JsonResponse
     {
+        if ($id === auth()->id()) {
+            return response()->json(['message' => 'Cannot delete your own account'], 400);
+        }
+
         $user = User::findOrFail($id);
         $user->delete();
         return response()->json(null, 204);
@@ -64,6 +126,10 @@ class UserController extends Controller
 
     public function importUsers(Request $request): JsonResponse 
     {
+        if (!auth()->user() || auth()->user()->role !== 'Administrator') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $request->validate([
             'type' => 'required|in:student,teacher,company',
             'file' => 'required|file|mimes:xlsx,csv,txt'
