@@ -68,15 +68,13 @@ class ProjectProposalController extends Controller
 
         $common = [
             'project_id' => 'required|exists:projects,project_id',
-            'review_comments' => 'nullable|string',
-            'co_supervisor_name' => 'nullable|string',
-            'co_supervisor_surname' => 'nullable|string'
+            'review_comments' => 'nullable|string'
         ];
 
         $roleSpecific = match($user->role) {
             'Teacher' => [
-                'co_supervisor_name' => 'required|string',
-                'co_supervisor_surname' => 'required|string',
+                'co_supervisor_name' => 'nullable|string',
+                'co_supervisor_surname' => 'nullable|string',
                 'additional_details' => 'nullable|array'
             ],
             'Student' => [

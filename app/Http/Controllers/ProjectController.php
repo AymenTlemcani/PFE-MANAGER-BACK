@@ -91,8 +91,8 @@ class ProjectController extends Controller
 
         $request->validate([
             'type' => 'required|in:Classical,Innovative',
-            'co_supervisor_name' => 'required|string',
-            'co_supervisor_surname' => 'required|string'
+            'co_supervisor_name' => 'nullable|string',
+            'co_supervisor_surname' => 'nullable|string'
         ]);
     }
 

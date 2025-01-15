@@ -4,7 +4,7 @@ DONE: Implement temporary password feature
 teacher can edit proposals
 students can set last proposal version or accept after the teacher edit it
 implement partnership and add scenarios to test (if sudent accept to be in a project he cannot submit or select a project)
-
+FIX : internal server error when we try to submit a project and the token is invalid or empty
 Project Management
 
 ProjectController.php
