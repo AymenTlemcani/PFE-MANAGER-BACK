@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
@@ -26,7 +27,8 @@ class ProjectController extends Controller
             'summary' => 'required|string',
             'technologies' => 'required|string',
             'material_needs' => 'nullable|string',
-            'option' => 'required|in:GL,IA,RSD,SIC'
+            'option' => 'required|in:GL,IA,RSD,SIC',
+            'type' => 'required|string'  // Add type validation here
         ];
 
         // Role-specific validation rules and submission limits
@@ -49,36 +51,49 @@ class ProjectController extends Controller
 
         $validated = $request->validate($commonRules);
 
-        // Create project with common fields
-        $project = Project::create([
-            ...$validated,
-            'status' => 'Proposed',
-            'submitted_by' => $user->user_id,
-            'submission_date' => now(),
-            'last_updated_date' => now(),
-            'type' => $request->type
-        ]);
-
-        // Handle type-specific data
-        if ($request->type === 'Internship') {
-            $project->update([
-                'company_name' => $request->company_name,
-                'internship_location' => $request->internship_location,
-                'internship_salary' => $request->internship_salary,
-                'internship_start_date' => $request->internship_start_date,
-                'internship_duration_months' => $request->internship_duration_months,
+        DB::beginTransaction();
+        try {
+            // Create project with common fields
+            $project = Project::create([
+                ...$validated,
+                'status' => 'Proposed',
+                'submitted_by' => $user->user_id,
+                'submission_date' => now(),
+                'last_updated_date' => now()
             ]);
+
+            // Handle type-specific data
+            if ($request->type === 'Internship') {
+                $project->update([
+                    'company_name' => $request->company_name,
+                    'internship_location' => $request->internship_location,
+                    'internship_salary' => $request->internship_salary,
+                    'internship_start_date' => $request->internship_start_date,
+                    'internship_duration_months' => $request->internship_duration_months,
+                ]);
+            }
+
+            // Create proposal record with required fields
+            $project->proposal()->create([
+                'submitted_by' => $user->user_id,
+                'proposer_type' => $user->role,
+                'proposal_status' => 'Pending',
+                'proposal_order' => 1,
+                'co_supervisor_name' => $request->co_supervisor_name,
+                'co_supervisor_surname' => $request->co_supervisor_surname,
+                'is_final_version' => false
+            ]);
+
+            DB::commit();
+            return response()->json($project, 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => $e->getMessage(),
+                'sqlError' => true,
+                'data' => $request->all()
+            ], 500);
         }
-
-        // Create proposal record
-        $project->proposal()->create([
-            'submitted_by' => $user->user_id,
-            'co_supervisor_name' => $request->co_supervisor_name ?? null,
-            'co_supervisor_surname' => $request->co_supervisor_surname ?? null,
-            'proposal_status' => 'Pending'
-        ]);
-
-        return response()->json($project, 201);
     }
 
     private function validateTeacherSubmission(Request $request): void
