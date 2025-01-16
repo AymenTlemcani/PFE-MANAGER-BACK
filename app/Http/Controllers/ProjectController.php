@@ -25,7 +25,7 @@ class ProjectController extends Controller
         $commonRules = [
             'title' => 'required|string|max:255',
             'summary' => 'required|string',
-            'technologies' => 'required|string',
+            'technologies' => 'nullable|string', // Make nullable
             'material_needs' => 'nullable|string',
             'option' => 'required|in:GL,IA,RSD,SIC',
             'type' => 'required|string'  // Add type validation here
@@ -175,7 +175,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'title' => 'string',
             'summary' => 'string',
-            'technologies' => 'string',
+            'technologies' => 'nullable|string', // Make nullable
             'material_needs' => 'nullable|string',
             'type' => 'in:Classical,Innovative,StartUp,Patent',
             'option' => 'in:GL,IA,RSD,SIC',

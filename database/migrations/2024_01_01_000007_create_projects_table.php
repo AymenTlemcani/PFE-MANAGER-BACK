@@ -10,8 +10,8 @@ return new class extends Migration {
             $table->id('project_id');
             $table->string('title');
             $table->text('summary');
-            $table->text('technologies');
-            $table->text('material_needs');
+            $table->text('technologies')->nullable(); // Make nullable
+            $table->text('material_needs')->nullable();
             $table->enum('type', ['Classical', 'Innovative', 'StartUp', 'Patent', 'Internship']);
             $table->enum('option', ['GL', 'IA', 'RSD', 'SIC']);
             $table->enum('status', ['Proposed', 'Validated', 'Assigned', 'InProgress', 'Completed']);
