@@ -626,4 +626,49 @@ class ProjectsTest extends TestCase
         $this->assertEquals('Updated Name', $updatedProposal->co_supervisor_name);
         $this->assertEquals('Updated Surname', $updatedProposal->co_supervisor_surname);
     }
+
+    public function test_responsible_teacher_can_filter_projects_by_status()
+    {
+        // Create multiple projects with different statuses
+        Project::factory()->count(2)->create(['status' => 'Proposed']);
+        Project::factory()->count(3)->create(['status' => 'Validated']);
+        
+        // Test filtering as responsible teacher
+        $response = $this->actingAs($this->responsibleTeacher)
+            ->getJson('/api/projects?status=Proposed');
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'projects' => [
+                    '*' => [
+                        'project_id',
+                        'title',
+                        'submitter_details',
+                        'submitter_role'
+                    ]
+                ],
+                'total'
+            ])
+            ->assertJson([
+                'total' => 2
+            ]);
+
+        // Test that submitter details are included
+        $responseData = $response->json();
+        $this->assertArrayHasKey('submitter_details', $responseData['projects'][0]);
+        $this->assertArrayHasKey('submitter_role', $responseData['projects'][0]);
+    }
+
+    public function test_regular_teacher_cannot_filter_projects_by_status()
+    {
+        Project::factory()->count(2)->create(['status' => 'Proposed']);
+        
+        $response = $this->actingAs($this->regularTeacher)
+            ->getJson('/api/projects?status=Proposed');
+
+        // Should return unfiltered list
+        $response->assertStatus(200)
+            ->assertJsonMissing(['submitter_details'])
+            ->assertJsonMissing(['total']);
+    }
 }

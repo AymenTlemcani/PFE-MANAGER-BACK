@@ -11,8 +11,77 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        // Check if status filter is provided and user is responsible teacher
+        if ($request->has('status') && auth()->user()->isResponsibleTeacher()) {
+            $status = $request->query('status');
+            
+            $projects = Project::where('status', $status)
+                ->with([
+                    'submitter',
+                    'submitter.student',
+                    'submitter.teacher',
+                    'submitter.company',
+                    'proposal' => function($query) {
+                        $query->with(['editor']);
+                    }
+                ])
+                ->get()
+                ->map(function ($project) {
+                    $submitter = $project->submitter;
+                    if (!$submitter) {
+                        return [...($project->toArray())];
+                    }
+
+                    $submitterDetails = null;
+                    
+                    // Add role-specific details with null checks
+                    switch ($submitter->role) {
+                        case 'Student':
+                            if ($submitter->student) {
+                                $submitterDetails = [
+                                    'name' => $submitter->student->name,
+                                    'surname' => $submitter->student->surname,
+                                    'master_option' => $submitter->student->master_option,
+                                    'overall_average' => $submitter->student->overall_average
+                                ];
+                            }
+                            break;
+                        case 'Teacher':
+                            if ($submitter->teacher) {
+                                $submitterDetails = [
+                                    'name' => $submitter->teacher->name,
+                                    'surname' => $submitter->teacher->surname,
+                                    'grade' => $submitter->teacher->grade
+                                ];
+                            }
+                            break;
+                        case 'Company':
+                            if ($submitter->company) {
+                                $submitterDetails = [
+                                    'company_name' => $submitter->company->company_name,
+                                    'contact_name' => $submitter->company->contact_name,
+                                    'contact_surname' => $submitter->company->contact_surname
+                                ];
+                            }
+                            break;
+                    }
+
+                    return [
+                        ...($project->toArray()),
+                        'submitter_details' => $submitterDetails,
+                        'submitter_role' => $submitter->role
+                    ];
+                });
+
+            return response()->json([
+                'projects' => $projects,
+                'total' => $projects->count()
+            ]);
+        }
+
+        // Default behavior for other users
         $projects = Project::with(['submitter', 'proposal', 'assignment'])->get();
         return response()->json($projects);
     }
