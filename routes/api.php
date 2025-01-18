@@ -20,6 +20,9 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\UserImportLogController;
 use App\Http\Controllers\EmailPeriodReminderController;
 use App\Http\Controllers\EmailPeriodTemplateController;
+use App\Http\Controllers\EmailCampaignController;
+use App\Http\Controllers\EmailTemplateController;
+use App\Http\Controllers\ReminderScheduleController;
 
 // Public routes - removed /api prefix since it's in the URL
 Route::post('/auth/login', [AuthController::class, 'login']);
@@ -46,6 +49,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/defense-sessions/plan', [AdministratorController::class, 'planDefenseSessions']);
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
     Route::get('/import-logs', [UserImportLogController::class, 'index']);
+    
+    // Email management routes
+    Route::prefix('email')->group(function () {
+        Route::apiResource('templates', EmailTemplateController::class);
+        Route::apiResource('campaigns', EmailCampaignController::class);
+        Route::post('campaigns/{id}/activate', [EmailCampaignController::class, 'activate']);
+        Route::get('campaigns/{id}/logs', [EmailCampaignController::class, 'logs']);
+        Route::apiResource('campaigns.reminders', ReminderScheduleController::class);
+    });
 
     // Teacher routes
     Route::apiResource('teachers', TeacherController::class);

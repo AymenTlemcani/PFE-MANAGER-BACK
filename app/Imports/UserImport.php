@@ -9,6 +9,8 @@ use App\Models\Company;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use App\Notifications\TemporaryPasswordNotification;
+use App\Services\EmailService;
 
 class UserImport
 {
@@ -98,35 +100,24 @@ class UserImport
                 )));
             }
 
-            // Generate temporary password
-            $tempPass = $this->generateTemporaryPasswordFromData($data);
-            $expirationDate = now()->addDays(7);
+            // Create user record
+            $user = $this->createUserRecord($data);
 
-            // Create base user with date_of_birth only for students and teachers
-            $userData = [
-                'email' => $data['email'],
-                'password' => Hash::make($tempPass),
-                'role' => ucfirst($this->type),
-                'must_change_password' => true,
-                'language_preference' => 'French',
-                'temporary_password' => $tempPass,
-                'temporary_password_expiration' => $expirationDate
-            ];
-
-            // Only add date_of_birth for students and teachers
-            if ($this->type !== 'company' && isset($data['date_of_birth'])) {
-                $userData['date_of_birth'] = $data['date_of_birth'];
-            }
-
-            $user = User::create($userData);
-
-            // Create role-specific record with enhanced error handling
+            // Create role-specific record
             $roleRecord = match($this->type) {
                 'student' => $this->createStudent($user, $data),
                 'teacher' => $this->createTeacher($user, $data),
                 'company' => $this->createCompany($user, $data),
                 default => throw new \Exception("Invalid user type: {$this->type}")
             };
+
+            // Try to send email, but don't rollback if it fails
+            try {
+                $emailService = new EmailService();
+                $emailService->sendTemporaryPassword($user, $user->temporary_password);
+            } catch (\Exception $e) {
+                \Log::error('Failed to send email to ' . $data['email'] . ': ' . $e->getMessage());
+            }
 
             \DB::commit();
 
@@ -140,22 +131,54 @@ class UserImport
 
         } catch (\Exception $e) {
             \DB::rollBack();
-            ++$this->failures;
-            
-            // Store detailed failure information
-            $this->failedRows[] = [
-                'row_number' => $this->rows,
-                'data' => $data,
-                'error_message' => $e->getMessage()
-            ];
-            
-            $this->errors[] = [
-                'row' => $this->rows,
-                'email' => $data['email'] ?? 'unknown',
-                'error' => $e->getMessage(),
-                'data' => $data
-            ];
+            $this->handleImportError($e, $data);
         }
+    }
+
+    protected function createUserRecord(array $data)
+    {
+        // Generate temporary password
+        $tempPass = $this->generateTemporaryPasswordFromData($data);
+        $expirationDate = now()->addDays(7);
+
+        $userData = [
+            'email' => $data['email'],
+            'password' => Hash::make($tempPass),
+            'role' => ucfirst($this->type),
+            'must_change_password' => true,
+            'language_preference' => 'French',
+            'temporary_password' => $tempPass,
+            'temporary_password_expiration' => $expirationDate
+        ];
+
+        if ($this->type !== 'company' && isset($data['date_of_birth'])) {
+            $userData['date_of_birth'] = $data['date_of_birth'];
+        }
+
+        return User::create($userData);
+    }
+
+    protected function handleImportError(\Exception $e, array $data)
+    {
+        ++$this->failures;
+        
+        $errorMessage = $e->getMessage();
+        if (str_contains($errorMessage, 'scheme is not supported')) {
+            $errorMessage = 'Email configuration error. The import succeeded but email notification failed.';
+        }
+        
+        $this->failedRows[] = [
+            'row_number' => $this->rows,
+            'data' => $data,
+            'error_message' => $errorMessage
+        ];
+        
+        $this->errors[] = [
+            'row' => $this->rows,
+            'email' => $data['email'] ?? 'unknown',
+            'error' => $errorMessage,
+            'data' => $data
+        ];
     }
 
     protected function createStudent($user, $data)
@@ -258,7 +281,7 @@ class UserImport
     {
         return match($this->type) {
             'student' => [
-                'email' => ['required', 'email', 'unique:users', 'regex:/@.*\.dz$/i'],
+                'email' => ['required', 'email', 'unique:users', 'regex:/@.*\.(dz|com)$/i'], // Updated regex
                 'name' => 'required|string',
                 'surname' => 'required|string',
                 'master_option' => 'required|in:GL,IA,RSD,SIC',
@@ -312,8 +335,8 @@ class UserImport
 
     protected function validateStudentData($data): void
     {
-        if (!preg_match('/@.*\.dz$/i', $data['email'])) {
-            throw new \Exception("Student email must use a .dz domain");
+        if (!preg_match('/@.*\.(dz|com)$/i', $data['email'])) { // Updated regex
+            throw new \Exception("Student email must use a .dz or .com domain");
         }
         if (!in_array($data['master_option'], ['GL', 'IA', 'RSD', 'SIC'])) {
             throw new \Exception("Invalid master option: {$data['master_option']}");

@@ -84,4 +84,14 @@ class User extends Authenticatable
         }
         return $this->teacher && $this->teacher->is_responsible;
     }
+
+    public function getName(): string
+    {
+        return match($this->role) {
+            'Student', 'Teacher' => $this->student?->name ?? $this->teacher?->name ?? 'User',
+            'Company' => $this->company?->contact_name ?? 'Contact',
+            'Administrator' => $this->administrator?->name ?? 'Admin',
+            default => 'User'
+        };
+    }
 }
