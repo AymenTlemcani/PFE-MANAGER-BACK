@@ -97,5 +97,9 @@ class DatabaseSeeder extends Seeder
             'is_responsible' => false,
             'research_domain' => 'Software Engineering'
         ]);
+
+        $this->call([
+            EmailTemplateSeeder::class,
+        ]);
     }
 }
