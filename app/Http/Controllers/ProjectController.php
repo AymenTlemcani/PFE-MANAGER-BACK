@@ -11,9 +11,22 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $projects = Project::with(['submitter', 'proposal', 'assignment'])->get();
+        $user = auth()->user();
+        $query = Project::with(['submitter', 'proposal', 'assignment']);
+
+        // Filter for students to see only approved teacher/company projects
+        if ($user->role === 'Student') {
+            $query->whereHas('proposal', function($q) {
+                $q->where('proposal_status', 'Approved');
+            })
+            ->whereHas('submitter', function($q) {
+                $q->whereIn('role', ['Teacher', 'Company']);
+            });
+        }
+
+        $projects = $query->get();
         return response()->json($projects);
     }
 

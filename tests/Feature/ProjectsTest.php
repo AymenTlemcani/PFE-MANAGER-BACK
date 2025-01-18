@@ -696,16 +696,72 @@ class ProjectsTest extends TestCase
         $response = $this->actingAs($this->regularTeacher)
             ->getJson('/api/project-proposals?status=' . ProjectProposal::STATUS_PENDING);
 
-        // Should return unfiltered list
+        // Should return all proposals in standard format
         $response->assertStatus(200)
-            ->assertJsonMissing(['submitter_details'])
-            ->assertJsonMissing(['total'])
             ->assertJsonStructure([
-                '*' => [
-                    'proposal_id',
-                    'project_id',
-                    'proposal_status'
-                ]
+                'proposals',
+                'total'
+            ])
+            ->assertJsonMissing([
+                'submitter_details' => [] 
+            ]);
+    }
+
+    public function test_student_can_only_see_approved_teacher_and_company_projects()
+    {
+        // Create a mix of projects
+        $teacherProject = Project::factory()
+            ->submittedBy($this->regularTeacher)
+            ->create(['type' => 'Classical']);
+        ProjectProposal::factory()
+            ->forProject($teacherProject)
+            ->forUser($this->regularTeacher)
+            ->create(['proposal_status' => 'Approved']);
+
+        $companyProject = Project::factory()
+            ->submittedBy($this->company)
+            ->create(['type' => 'Internship']);
+        ProjectProposal::factory()
+            ->forProject($companyProject)
+            ->forUser($this->company)
+            ->create(['proposal_status' => 'Approved']);
+
+        // Create some projects that shouldn't be visible
+        $pendingProject = Project::factory()
+            ->submittedBy($this->regularTeacher)
+            ->create();
+        ProjectProposal::factory()
+            ->forProject($pendingProject)
+            ->forUser($this->regularTeacher)
+            ->create(['proposal_status' => 'Pending']);
+
+        $studentProject = Project::factory()
+            ->submittedBy($this->student2)
+            ->create();
+        ProjectProposal::factory()
+            ->forProject($studentProject)
+            ->forUser($this->student2)
+            ->create(['proposal_status' => 'Approved']);
+
+        // Test as student
+        $response = $this->actingAs($this->student)
+            ->getJson('/api/projects');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(2)
+            ->assertJsonFragment([
+                'project_id' => $teacherProject->project_id,
+                'type' => 'Classical'
+            ])
+            ->assertJsonFragment([
+                'project_id' => $companyProject->project_id,
+                'type' => 'Internship'
+            ])
+            ->assertJsonMissing([
+                'project_id' => $pendingProject->project_id,
+            ])
+            ->assertJsonMissing([
+                'project_id' => $studentProject->project_id,
             ]);
     }
 }
