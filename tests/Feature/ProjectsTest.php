@@ -627,48 +627,85 @@ class ProjectsTest extends TestCase
         $this->assertEquals('Updated Surname', $updatedProposal->co_supervisor_surname);
     }
 
-    public function test_responsible_teacher_can_filter_projects_by_status()
+    public function test_responsible_teacher_can_filter_project_proposals_by_status()
     {
-        // Create multiple projects with different statuses
-        Project::factory()->count(2)->create(['status' => 'Proposed']);
-        Project::factory()->count(3)->create(['status' => 'Validated']);
-        
+        // Create test projects and proposals
+        $project1 = Project::factory()
+            ->submittedBy($this->regularTeacher)
+            ->create();
+        ProjectProposal::factory()
+            ->forProject($project1)
+            ->forUser($this->regularTeacher)
+            ->create([
+                'proposal_status' => ProjectProposal::STATUS_PENDING,
+                'proposer_type' => 'Teacher'
+            ]);
+
+        $project2 = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+        ProjectProposal::factory()
+            ->forProject($project2)
+            ->forUser($this->student)
+            ->create([
+                'proposal_status' => ProjectProposal::STATUS_APPROVED,
+                'proposer_type' => 'Student'
+            ]);
+
         // Test filtering as responsible teacher
         $response = $this->actingAs($this->responsibleTeacher)
-            ->getJson('/api/projects?status=Proposed');
+            ->getJson('/api/project-proposals?status=' . ProjectProposal::STATUS_PENDING);
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'projects' => [
+                'proposals' => [
                     '*' => [
-                        'project_id',
-                        'title',
+                        'proposal_id',
+                        'proposal_status',
+                        'proposer_type',
                         'submitter_details',
-                        'submitter_role'
+                        'project'
                     ]
                 ],
                 'total'
             ])
             ->assertJson([
-                'total' => 2
+                'total' => 1,
+                'proposals' => [
+                    ['proposal_status' => ProjectProposal::STATUS_PENDING]
+                ]
             ]);
-
-        // Test that submitter details are included
-        $responseData = $response->json();
-        $this->assertArrayHasKey('submitter_details', $responseData['projects'][0]);
-        $this->assertArrayHasKey('submitter_role', $responseData['projects'][0]);
     }
 
-    public function test_regular_teacher_cannot_filter_projects_by_status()
+    public function test_regular_teacher_cannot_filter_project_proposals_by_status()
     {
-        Project::factory()->count(2)->create(['status' => 'Proposed']);
-        
+        // Create some test proposals
+        $project = Project::factory()
+            ->submittedBy($this->student)
+            ->create();
+            
+        ProjectProposal::factory()
+            ->forProject($project)
+            ->forUser($this->student)
+            ->create([
+                'proposal_status' => ProjectProposal::STATUS_PENDING,
+                'proposer_type' => 'Student'
+            ]);
+
+        // Regular teacher tries to filter
         $response = $this->actingAs($this->regularTeacher)
-            ->getJson('/api/projects?status=Proposed');
+            ->getJson('/api/project-proposals?status=' . ProjectProposal::STATUS_PENDING);
 
         // Should return unfiltered list
         $response->assertStatus(200)
             ->assertJsonMissing(['submitter_details'])
-            ->assertJsonMissing(['total']);
+            ->assertJsonMissing(['total'])
+            ->assertJsonStructure([
+                '*' => [
+                    'proposal_id',
+                    'project_id',
+                    'proposal_status'
+                ]
+            ]);
     }
 }

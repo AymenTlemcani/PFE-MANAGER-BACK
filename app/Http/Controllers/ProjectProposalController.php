@@ -11,10 +11,64 @@ use DB;
 
 class ProjectProposalController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $proposals = ProjectProposal::with(['project', 'submitter'])->get();
-        return response()->json($proposals);
+        // Get base query with relationships
+        $query = ProjectProposal::with([
+            'project',
+            'submitter',
+            'submitter.student',
+            'submitter.teacher',
+            'submitter.company',
+            'editor'
+        ]);
+
+        // Filter by status if provided and user is responsible teacher
+        if ($request->has('status') && auth()->user()->isResponsibleTeacher()) {
+            $query->where('proposal_status', $request->query('status'));
+        }
+
+        $proposals = $query->get()->map(function ($proposal) {
+            $submitter = $proposal->submitter;
+            $submitterDetails = null;
+
+            if ($submitter) {
+                switch ($submitter->role) {
+                    case 'Student':
+                        $submitterDetails = $submitter->student ? [
+                            'name' => $submitter->student->name,
+                            'surname' => $submitter->student->surname,
+                            'master_option' => $submitter->student->master_option,
+                            'overall_average' => $submitter->student->overall_average
+                        ] : null;
+                        break;
+                    case 'Teacher':
+                        $submitterDetails = $submitter->teacher ? [
+                            'name' => $submitter->teacher->name,
+                            'surname' => $submitter->teacher->surname,
+                            'grade' => $submitter->teacher->grade
+                        ] : null;
+                        break;
+                    case 'Company':
+                        $submitterDetails = $submitter->company ? [
+                            'company_name' => $submitter->company->company_name,
+                            'contact_name' => $submitter->company->contact_name,
+                            'contact_surname' => $submitter->company->contact_surname
+                        ] : null;
+                        break;
+                }
+            }
+
+            return array_merge($proposal->toArray(), [
+                'submitter_details' => $submitterDetails
+            ]);
+        });
+
+        // Always return consistent response format
+        return response()->json([
+            'proposals' => $proposals,
+            'total' => $proposals->count()
+        ]);
     }
 
     public function store(Request $request): JsonResponse
