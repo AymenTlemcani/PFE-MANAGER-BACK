@@ -108,56 +108,39 @@ class EmailCampaignController extends Controller
     {
         $this->checkAdminAccess();
         try {
-            \DB::beginTransaction();
-            
-            $campaign = EmailCampaign::with(['startTemplate'])->findOrFail($id);
+            $campaign = EmailCampaign::with('reminderSchedules')->findOrFail($id);
             
             if ($campaign->status !== 'Draft') {
-                \DB::rollBack();
                 return response()->json(['message' => 'Campaign must be in Draft status to activate'], 400);
             }
 
-            // Get target users first
-            $users = $this->getTargetUsers($campaign->target_audience);
-            
-            // Send emails and create logs
-            foreach ($users as $user) {
-                $emailData = [
-                    'campaign_name' => $campaign->name,
-                    'start_date' => $campaign->start_date->format('Y-m-d H:i'),
-                    'end_date' => $campaign->end_date->format('Y-m-d H:i')
-                ];
-
-                // Create log first
-                $log = \App\Models\EmailLog::create([
-                    'campaign_id' => $campaign->campaign_id,
-                    'template_id' => $campaign->startTemplate->template_id,
-                    'recipient_email' => $user->email,
-                    'user_id' => $user->user_id,
-                    'status' => 'Pending',
-                    'sent_at' => now(),
-                    'template_data' => $emailData
-                ]);
-
-                // Send email
-                \Mail::to($user->email)->send(new \App\Mail\GenericEmail(
-                    $campaign->startTemplate,
-                    $emailData
-                ));
-
-                // Update log status
-                $log->update(['status' => 'Sent']);
+            if (!$campaign->reminderSchedules->count()) {
+                return response()->json(['message' => 'Campaign must have at least one reminder schedule'], 400);
             }
 
-            // Update status after successful sending
+            // Get target users
+            $users = $this->getTargetUsers($campaign->target_audience);
+            
+            // Process emails
+            $template = EmailTemplate::findOrFail($campaign->reminderSchedules->first()->template_id);
+            
+            foreach ($users as $user) {
+                $this->emailService->sendEmail(
+                    $user, 
+                    $template,
+                    [
+                        'name' => $user->getName(),
+                        'campaign_name' => $campaign->name,
+                        'deadline' => $campaign->end_date
+                    ]
+                );
+            }
+
             $campaign->update(['status' => 'Active']);
 
-            \DB::commit();
-            return response()->json(['message' => 'Campaign activated successfully']);
-            
+            return response()->json(['message' => 'Campaign activated and emails sent']);
         } catch (\Exception $e) {
-            \DB::rollBack();
-            \Log::error('Campaign activation failed', ['error' => $e->getMessage()]);
+            \Log::error('Campaign activation failed: ' . $e->getMessage());
             return response()->json(['message' => 'Error activating campaign: ' . $e->getMessage()], 500);
         }
     }

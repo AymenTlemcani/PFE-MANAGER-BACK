@@ -43,14 +43,17 @@ PFE Management System',
                 default => 'User'
             };
 
-            Mail::to($user->email)->send(new GenericEmail(
-                $template,
-                [
-                    'name' => $userName,
-                    'temporary_password' => $tempPassword,
-                    'expiry_days' => $expiryDays
-                ]
-            ));
+            $data = [
+                'name' => $userName,
+                'temporary_password' => $tempPassword,
+                'expiry_days' => $expiryDays
+            ];
+
+            // Process template content
+            $content = $this->replacePlaceholders($template->content, $data);
+            $subject = $this->replacePlaceholders($template->subject, $data);
+
+            Mail::to($user->email)->send(new GenericEmail($subject, $content));
 
             // Log success
             EmailLog::create([
@@ -59,11 +62,7 @@ PFE Management System',
                 'user_id' => $user->user_id,
                 'status' => 'Sent',
                 'sent_at' => now(),
-                'template_data' => [
-                    'name' => $userName,
-                    'temporary_password' => $tempPassword,
-                    'expiry_days' => $expiryDays
-                ]
+                'template_data' => $data
             ]);
 
             return true;
@@ -98,6 +97,12 @@ PFE Management System',
 
             return true;
         } catch (\Exception $e) {
+            \Log::error('Email sending failed', [
+                'error' => $e->getMessage(),
+                'user' => $user->user_id,
+                'template' => $template->template_id
+            ]);
+            
             // Log failure
             EmailLog::create([
                 'template_id' => $template->template_id,
@@ -108,7 +113,6 @@ PFE Management System',
                 'template_data' => $data
             ]);
 
-            \Log::error('Email sending failed: ' . $e->getMessage());
             return false;
         }
     }

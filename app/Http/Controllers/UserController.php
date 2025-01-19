@@ -222,19 +222,19 @@ class UserController extends Controller
     {
         $this->checkAdminAccess();
 
-        $request->validate([
-            'type' => 'required|in:student,teacher,company',
-            'file' => 'required|file|mimes:xlsx,csv,txt'
-        ]);
-
         try {
-            // Validate file size
-            if ($request->file('file')->getSize() > 5242880) { // 5MB limit
+            // Check file size first before validation
+            if ($request->hasFile('file') && $request->file('file')->getSize() > 5242880) { // 5MB in bytes
                 return response()->json([
                     'message' => 'File size exceeds limit',
                     'error' => 'Maximum file size is 5MB'
                 ], 400);
             }
+
+            $validated = $request->validate([
+                'type' => 'required|in:student,teacher,company',
+                'file' => 'required|file|mimes:xlsx,csv,txt'
+            ]);
 
             $import = new UserImport($request->type);
             $import->import($request->file('file'));
@@ -261,33 +261,20 @@ class UserController extends Controller
                     'successful_imports' => $import->getRowCount() - $import->getFailureCount(),
                     'failed_imports' => $import->getFailureCount(),
                 ],
-                'successful_rows' => array_map(function($row) {
-                    if (isset($row['details'])) {
-                        $row['details']->date_of_birth = User::find($row['details']->user_id)->date_of_birth;
-                    }
-                    return $row;
-                }, $import->getSuccessfulRows()),
+                'successful_rows' => $import->getSuccessfulRows(),
                 'failed_rows' => $import->getFailedRows(),
-                'errors' => $import->getErrors(),
-                'warnings' => [], // For future use with non-critical issues
-                'file_info' => [
-                    'name' => $request->file('file')->getClientOriginalName(),
-                    'size' => $request->file('file')->getSize(),
-                    'type' => $request->file('file')->getMimeType(),
-                ]
+                'errors' => $import->getErrors()
             ], 201);
 
-        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
-            return response()->json([
-                'message' => 'File reading error',
-                'error' => $e->getMessage(),
-                'type' => 'file_error'
-            ], 400);
         } catch (\Exception $e) {
+            \Log::error('Import failed', [
+                'error' => $e->getMessage(),
+                'file' => $request->file('file')->getClientOriginalName()
+            ]);
+            
             return response()->json([
                 'message' => 'Import failed',
-                'error' => $e->getMessage(),
-                'type' => 'system_error'
+                'error' => $e->getMessage()
             ], 500);
         }
     }
