@@ -77,6 +77,55 @@ class EmailsTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_admin_can_edit_template()
+    {
+        $template = EmailTemplate::create([
+            'name' => 'editable_template',
+            'subject' => 'Original Subject',
+            'content' => 'Original content',
+            'type' => 'System',
+            'language' => 'English',
+            'is_active' => true
+        ]);
+
+        $response = $this->actingAs($this->admin)->putJson("/api/email/templates/{$template->template_id}", [
+            'subject' => 'Updated Subject',
+            'content' => 'Updated content {name}!',
+            'placeholders' => ['name'],
+            'type' => 'Notification',
+            'is_active' => false
+        ]);
+
+        $response->assertOk();
+        
+        $this->assertDatabaseHas('email_templates', [
+            'template_id' => $template->template_id,
+            'subject' => 'Updated Subject',
+            'content' => 'Updated content {name}!',
+            'type' => 'Notification',
+            'is_active' => false
+        ]);
+    }
+
+    public function test_admin_can_delete_template()
+    {
+        $template = EmailTemplate::create([
+            'name' => 'deletable_template',
+            'subject' => 'Test Subject',
+            'content' => 'Test content',
+            'type' => 'System',
+            'language' => 'English',
+            'is_active' => true
+        ]);
+
+        $response = $this->actingAs($this->admin)
+            ->deleteJson("/api/email/templates/{$template->template_id}");
+
+        $response->assertStatus(204);
+        $this->assertDatabaseMissing('email_templates', ['template_id' => $template->template_id]);
+        $this->assertEquals(0, EmailTemplate::where('template_id', $template->template_id)->count());
+    }
+
     // Campaign Management Tests
     public function test_admin_can_create_and_activate_campaign()
     {
