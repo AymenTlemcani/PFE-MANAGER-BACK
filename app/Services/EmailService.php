@@ -13,22 +13,68 @@ class EmailService
 {
     public function sendTemporaryPassword(User $user, string $tempPassword, int $expiryDays = 7): bool
     {
-        $language = $user->language_preference ?? 'French';
-        $templateName = 'temporary_password_' . strtolower(substr($language, 0, 2));
-        
-        $template = EmailTemplate::where('name', $templateName)
-            ->where('language', $language)
-            ->first();
+        try {
+            $template = EmailTemplate::firstOrCreate(
+                [
+                    'name' => 'temporary_password_template',
+                    'language' => $user->language_preference ?? 'French'
+                ],
+                [
+                    'subject' => 'Your PFE Manager Temporary Password',
+                    'content' => 'Hello {name},
 
-        if (!$template) {
-            return $this->sendDefaultTemporaryPasswordEmail($user, $tempPassword, $expiryDays);
+Your account has been created in the PFE Management System.
+Your temporary password is: {temporary_password}
+
+Please log in and change your password as soon as possible.
+This temporary password will expire in {expiry_days} days.
+
+Best regards,
+PFE Management System',
+                    'type' => 'System',
+                    'is_active' => true
+                ]
+            );
+
+            $userName = match($user->role) {
+                'Student' => $user->student->name ?? 'Student',
+                'Teacher' => $user->teacher->name ?? 'Teacher',
+                'Company' => $user->company->contact_name ?? 'User',
+                default => 'User'
+            };
+
+            Mail::to($user->email)->send(new GenericEmail(
+                $template,
+                [
+                    'name' => $userName,
+                    'temporary_password' => $tempPassword,
+                    'expiry_days' => $expiryDays
+                ]
+            ));
+
+            // Log success
+            EmailLog::create([
+                'template_id' => $template->template_id,
+                'recipient_email' => $user->email,
+                'user_id' => $user->user_id,
+                'status' => 'Sent',
+                'sent_at' => now(),
+                'template_data' => [
+                    'name' => $userName,
+                    'temporary_password' => $tempPassword,
+                    'expiry_days' => $expiryDays
+                ]
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            \Log::error('Failed to send temporary password email', [
+                'user_id' => $user->user_id,
+                'email' => $user->email,
+                'error' => $e->getMessage()
+            ]);
+            return false;
         }
-
-        return $this->sendEmail($user, $template, [
-            'name' => $user->getName(),
-            'temporary_password' => $tempPassword,
-            'expiry_days' => $expiryDays
-        ]);
     }
 
     public function sendEmail(User $user, EmailTemplate $template, array $data = []): bool

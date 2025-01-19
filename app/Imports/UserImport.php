@@ -101,7 +101,8 @@ class UserImport
             }
 
             // Create user record
-            $user = $this->createUserRecord($data);
+            $tempPass = $this->generateTemporaryPasswordFromData($data);
+            $user = $this->createUserRecord($data, $tempPass);
 
             // Create role-specific record
             $roleRecord = match($this->type) {
@@ -111,12 +112,19 @@ class UserImport
                 default => throw new \Exception("Invalid user type: {$this->type}")
             };
 
-            // Try to send email, but don't rollback if it fails
-            try {
-                $emailService = new EmailService();
-                $emailService->sendTemporaryPassword($user, $user->temporary_password);
-            } catch (\Exception $e) {
-                \Log::error('Failed to send email to ' . $data['email'] . ': ' . $e->getMessage());
+            // Send email with temporary password
+            $emailService = app(EmailService::class);
+            $emailSent = $emailService->sendTemporaryPassword(
+                $user,
+                $tempPass,
+                7 // expiry days
+            );
+
+            if (!$emailSent) {
+                \Log::warning('Failed to send temporary password email', [
+                    'user_id' => $user->user_id,
+                    'email' => $user->email
+                ]);
             }
 
             \DB::commit();
@@ -126,7 +134,8 @@ class UserImport
                 'row_number' => $this->rows,
                 'email' => $data['email'],
                 'type' => $this->type,
-                'details' => $roleRecord
+                'details' => $roleRecord,
+                'email_sent' => $emailSent
             ];
 
         } catch (\Exception $e) {
@@ -135,50 +144,20 @@ class UserImport
         }
     }
 
-    protected function createUserRecord(array $data)
+    protected function createUserRecord(array $data, string $tempPass)
     {
-        // Generate temporary password
-        $tempPass = $this->generateTemporaryPasswordFromData($data);
         $expirationDate = now()->addDays(7);
 
-        $userData = [
+        return User::create([
             'email' => $data['email'],
             'password' => Hash::make($tempPass),
             'role' => ucfirst($this->type),
             'must_change_password' => true,
             'language_preference' => 'French',
             'temporary_password' => $tempPass,
-            'temporary_password_expiration' => $expirationDate
-        ];
-
-        if ($this->type !== 'company' && isset($data['date_of_birth'])) {
-            $userData['date_of_birth'] = $data['date_of_birth'];
-        }
-
-        return User::create($userData);
-    }
-
-    protected function handleImportError(\Exception $e, array $data)
-    {
-        ++$this->failures;
-        
-        $errorMessage = $e->getMessage();
-        if (str_contains($errorMessage, 'scheme is not supported')) {
-            $errorMessage = 'Email configuration error. The import succeeded but email notification failed.';
-        }
-        
-        $this->failedRows[] = [
-            'row_number' => $this->rows,
-            'data' => $data,
-            'error_message' => $errorMessage
-        ];
-        
-        $this->errors[] = [
-            'row' => $this->rows,
-            'email' => $data['email'] ?? 'unknown',
-            'error' => $errorMessage,
-            'data' => $data
-        ];
+            'temporary_password_expiration' => $expirationDate,
+            'date_of_birth' => $data['date_of_birth'] ?? null
+        ]);
     }
 
     protected function createStudent($user, $data)
@@ -335,9 +314,12 @@ class UserImport
 
     protected function validateStudentData($data): void
     {
-        if (!preg_match('/@.*\.(dz|com)$/i', $data['email'])) { // Updated regex
+        // Check for invalid domain first
+        if (!preg_match('/@.*\.(dz|com)$/i', $data['email'])) { 
             throw new \Exception("Student email must use a .dz or .com domain");
         }
+
+        // Continue with other validations only if email is valid
         if (!in_array($data['master_option'], ['GL', 'IA', 'RSD', 'SIC'])) {
             throw new \Exception("Invalid master option: {$data['master_option']}");
         }
@@ -375,5 +357,24 @@ class UserImport
     public function getFailureCount(): int
     {
         return $this->failures;
+    }
+
+    protected function handleImportError(\Exception $e, array $data): void
+    {
+        ++$this->failures;
+        
+        $errorMessage = $e->getMessage();
+        $this->errors[] = [
+            'row' => $this->rows,
+            'email' => $data['email'] ?? 'unknown',
+            'error' => $errorMessage,
+            'data' => $data
+        ];
+
+        $this->failedRows[] = [
+            'row_number' => $this->rows,
+            'data' => $data,
+            'error_message' => $errorMessage
+        ];
     }
 }

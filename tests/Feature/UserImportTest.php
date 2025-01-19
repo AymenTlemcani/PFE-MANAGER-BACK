@@ -125,7 +125,7 @@ class UserImportTest extends TestCase
 
         $data = [
             [
-                'email' => 'student@gmail.com',
+                'email' => 'student@invalid.net',  // Invalid domain
                 'name' => 'John',
                 'surname' => 'Doe',
                 'master_option' => 'GL',
@@ -135,8 +135,14 @@ class UserImportTest extends TestCase
             ]
         ];
 
-        $filename = $this->createSpreadsheet('student', $data);
-        $file = new UploadedFile($filename, 'students.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+        $filename = $this->createTestFile('student', $data);
+        $file = new UploadedFile(
+            $filename, 
+            'students.xlsx', 
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+            null, 
+            true
+        );
 
         $response = $this->actingAs($admin)
             ->postJson('/api/users/import', [
@@ -145,7 +151,7 @@ class UserImportTest extends TestCase
             ]);
 
         $response->assertStatus(201);
-        $this->assertDatabaseMissing('users', ['email' => 'student@gmail.com']);
+        $this->assertDatabaseMissing('users', ['email' => 'student@invalid.net']);
         $this->assertDatabaseHas('user_import_logs', [
             'import_type' => 'student',
             'successful_imports' => 0,

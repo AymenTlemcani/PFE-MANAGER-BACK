@@ -2,25 +2,35 @@
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use App\Models\EmailTemplate;
 
 class GenericEmail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use SerializesModels;
 
-    private $content;
+    public EmailTemplate $template;
+    public array $data;
 
-    public function __construct(string $subject, string $content)
+    public function __construct(EmailTemplate $template, array $data = [])
     {
-        $this->subject = $subject;
-        $this->content = $content;
+        $this->template = $template;
+        $this->data = $data;
     }
 
     public function build()
     {
-        return $this->subject($this->subject)
-                    ->text('emails.generic', ['content' => $this->content]);
+        return $this->subject($this->replaceVariables($this->template->subject))
+                   ->view('emails.generic')
+                   ->with(['content' => $this->replaceVariables($this->template->content)]);
+    }
+
+    private function replaceVariables(string $text): string
+    {
+        foreach ($this->data as $key => $value) {
+            $text = str_replace('{' . $key . '}', (string)$value, $text);
+        }
+        return $text;
     }
 }
