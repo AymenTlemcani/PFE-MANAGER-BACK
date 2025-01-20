@@ -8,7 +8,9 @@ use App\Models\EmailLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Mail\Message;
-
+// this is the last commit i think keep in mind that did this project is supposed to be a team work project
+// but i did it alone and i did my best to make it as good as possible
+// even though i hate php and laravel SO MUCH
 class EmailService
 {
     public function sendTemporaryPassword(User $user, string $tempPassword, int $expiryDays = 7): bool
